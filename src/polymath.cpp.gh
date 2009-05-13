@@ -1,0 +1,532 @@
+/*
+ *  Copyright 2007 Spark Fun Electronics
+ *
+ *  David Carne 07/08/06
+ *
+ *  This file is part of gerberDRC.
+ *
+ *  gerberDRC is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Foobar is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#ifndef INT_ASSERT
+#include <assert.h>
+#else
+#include "../tests/test_funcs.h"
+#define assert TEST_ASSERT
+#endif
+
+#include "polymath.h"
+#include "polymath_internal.h"
+
+#define printf(...)
+
+GH_vertex * __find_non_intersect(GH_vertex * v)
+{
+	while (v && v->intersect)
+		v = v->next;
+	return v;
+}
+GH_vertex * __find_intersect(GH_vertex * v)
+{
+	while (v && !v->intersect)
+		v = v->next;
+	return v;
+}
+GH_vertex * __find_intersect_notdone(GH_vertex * v)
+{
+	while (v && (!v->intersect || v->done))
+		v = v->next;
+	return v;
+}
+
+GH_vertex * __find_last(GH_vertex * v)
+{
+	while (v && v->next)
+		v = v->next;
+	return v;
+}
+
+
+struct GH_vertex * alloc_GH_vertex()
+{
+	struct GH_vertex * v = (struct GH_vertex *)malloc(sizeof(struct GH_vertex));
+	v->c.x = v->c.y = INFINITY;
+	v->next = v->prev = v->nextPoly = v->neighbor = NULL;
+	v->intersect = v->entry_exit = false;
+	v->alpha = 0;
+	v->done = false;
+	return v;
+}
+
+struct GH_vertex * GH_createIVertex(GH_point * A, GH_point * B, float a)
+{
+	assert(A != NULL);
+	assert(B != NULL);
+	assert(a > 0 && a < 1);
+
+	double x = A->x * (1 - a) + B->x * a;
+	double y = A->y * (1 - a) + B->y * a;
+	GH_vertex * v = alloc_GH_vertex();
+	v->alpha = a;
+	v->intersect = true;
+	v->c.x = x;
+	v->c.y = y;
+	return v;
+}
+
+void GH_linkVerticies(GH_vertex * a, GH_vertex * b)
+{
+	assert(a != NULL);
+	assert(b != NULL);
+
+	a->neighbor = b;
+	b->neighbor = a;
+}
+
+// insertion point and where to insert
+void GH_insertAfter(GH_vertex * ip, GH_vertex * ti)
+{
+	assert(ip != NULL);
+	assert(ti != NULL);
+	assert(ti->next == NULL);
+	assert(ti->prev == NULL);
+
+
+	ti->prev = ip;
+	ti->next = ip->next;
+	if (ip->next)
+		ip->next->prev = ti;
+
+	ip->next = ti;
+}
+void GH_unlink(GH_vertex * v)
+{
+	assert(v);
+	if (v->prev)
+		v->prev->next = v->next;
+	if (v->next)
+		v->next->prev = v->prev;
+}
+
+bool GH_polyHasIntersectingNotDone(GH_vertex * v)
+{
+	GH_vertex * a;
+
+	FOR_VERTEX_I(v, a)
+		if (!a->done)
+			return true;
+	END_FOR_VERTEX_I(v, a);
+
+	return false;
+}
+
+void GH_sortedInsert(GH_vertex * P1, GH_vertex * P2, GH_vertex * I)
+{
+	assert(P1 != NULL);	assert(P2 != NULL);	assert(I != NULL);
+	assert(!P1->intersect);	assert(!P2->intersect);	assert(I->intersect);
+	assert(P1->alpha == 0);	assert(P2->alpha == 0);	assert(I->alpha > 0 && I->alpha < 1);
+
+	GH_vertex * J = P1;
+	// Need to find vertex J
+	// 	such that !J->intersect || J->alpha <= I->alpha
+	// 	and	!J->next || !J->next->intersect || J->alpha >= I->alpha
+	
+	while (	J && !((!J->intersect || J->alpha <= I->alpha) && 
+		(!J->next || !J->next->intersect || J->next->alpha >= I->alpha)))
+			J = J->next;
+	assert(J);
+	GH_insertAfter(J,I);
+
+
+}
+
+float GH_calc_WEC(GH_point * A, GH_point * B, GH_point * C, GH_point * D)
+{
+	assert(A != NULL); assert(B != NULL); assert(C != NULL); assert(D != NULL);
+	// (A - B) dot perpendicular(C - D)
+	return (float)(A->y - B->y) * (C->x - D->x) - (A->x - B->x) * (C->y - D->y);
+}
+
+int outcode(GH_point * p, double L, double R, double B, double T)
+{
+	assert(p != NULL);
+	assert(L <= R); assert(B <= T);
+
+	int outcode = 0;
+	if (p->x < L)
+		outcode |= OC_L;
+	if (p->x > R)
+		outcode |= OC_R;
+	if (p->y < B)
+		outcode |= OC_B;
+	if (p->y > T)
+		outcode |= OC_T;
+
+	return outcode;
+}
+bool GH_intersect(GH_point * P1, GH_point * P2, GH_point * Q1, GH_point * Q2,
+	float * alphaP, float * alphaQ)
+{
+	assert(P1 != NULL); assert(P2 != NULL); assert(Q1 != NULL); assert(Q2 != NULL);
+	assert(alphaP != NULL); assert(alphaQ != NULL);
+
+	// First do outcodes
+	// LRBT
+	int outcode_P1 = 0;
+	int outcode_P2 = 0;
+	double winL = Q1->x > Q2->x ? Q2->x : Q1->x;
+	double winR = Q1->x > Q2->x ? Q1->x : Q2->x;
+	double winB = Q1->y > Q2->y ? Q2->y : Q1->y;
+	double winT = Q1->y > Q2->y ? Q1->y : Q2->y;
+		
+	outcode_P1 = outcode(P1, winL, winR, winB, winT);
+	outcode_P2 = outcode(P2, winL, winR, winB, winT);
+	
+	// If any bits set in the outcode, no intersection possible, so abort
+	if (outcode_P1 & outcode_P2)
+		return false;
+
+	// Now do the window-edge-coordinate method of finding intersections
+	float WEC_P1 = GH_calc_WEC(P1, Q1, Q2, Q1);
+	float WEC_P2 = GH_calc_WEC(P2, Q1, Q2, Q1);
+	if (WEC_P1 * WEC_P2 <= 0)
+	{
+		float WEC_Q1 = GH_calc_WEC(Q1, P1, P2, P1);
+		float WEC_Q2 = GH_calc_WEC(Q2, P1, P2, P1);
+		if (WEC_Q1 * WEC_Q2 <= 0)
+		{
+			*alphaP = WEC_P1 / (WEC_P1 - WEC_P2);
+			*alphaQ = WEC_Q1 / (WEC_Q1 - WEC_Q2);
+			return true;
+		}
+	}
+	return false;
+}
+
+bool GH_pointInPoly(GH_vertex * poly, GH_point * point)
+{
+	// TODO: optimize + fix
+	GH_point end;
+	float aa, ab;
+
+	end.x = point->x+1000000;
+	end.y = point->y;
+
+	int c = 0;
+	GH_vertex * a, *b;
+	
+	FOR_VERTEX_PAIR(poly, a, b)
+		if (GH_intersect(VERTEX_POINT(a), VERTEX_POINT(b), point, &end, &aa, &ab))
+			c++;
+	END_FOR_VERTEX_PAIR(poly, a, b);
+	return c & 0x1; // Odd winding # means inside poly, even outside.
+}
+/*
+ * Quoted from Greiner-Hormann '98
+ *
+ * Search for all intersection points by testing whether each edge of
+ * the subject polygon and each of the clip polygon intersect or not.
+ *
+ * If they do, the intersection routine will deliver two numbers between
+ * 0 and 1, the alpha values, which indicate where the intersection
+ * point lies relatively to the start and end points of both edges.
+ *
+ * With respect to these alpha values, we create new verticies and insert
+ * them into the data structures of subject and clip polygons between the 
+ * start and end points of the edges they intersect. If no intersection
+ * points are detected we know that either the subject polygon lies entirely
+ * inside the clip polygon or vice versa, or both polygons are disjoint.
+ *
+ * By performing even-odd rule we can easily decide which case we have
+ * and simply return either the inner polygon as the clipped polygon, 
+ * or nothing at all
+ *
+ */
+bool GH_phase_one(struct GH_vertex * subject, struct GH_vertex * clip)
+{
+	assert(subject != NULL);
+	assert(clip != NULL);
+
+	/*
+	 * Pseudo code for phase one
+	 * for each vertex Si of subject do
+	 * 	for each vertex Cj of clip do
+	 * 		if intersect Si, Si+1, Cj, Cj + 1, a, b
+	 * 			I1 = CreateVertex(Si, Si+1, a)
+	 * 			I2 = CreateVertex(Cj, Cj+1, b)
+	 * 			link I1 + I2
+	 * 			add I1 to subject poly
+	 * 			add I2 to clip poly
+	 * 		end if
+	 * 	end for
+	 * end for
+	 */
+	GH_vertex * s0, * s1;
+	GH_vertex * c0, * c1;
+
+	bool intersect_found = false;
+
+	/* TODO: Remove perturbation once implemented GHKK
+	FOR_VERTEX(subject, s0)
+		s0->c.x += (rand()/(float)RAND_MAX * 2 - 1) / 10000000;
+		s0->c.y += (rand()/(float)RAND_MAX * 2 - 1) / 10000000;
+	END_FOR_VERTEX(subject, s0);*/
+	/* poly insertion list pointers */
+	GH_vertex * sI = NULL, * cI = NULL;
+	FOR_VERTEX_NI_PAIR(subject, s0, s1)
+		FOR_VERTEX_NI_PAIR(clip, c0, c1)
+			float a, b;
+			if (GH_intersect(
+				VERTEX_POINT(s0), VERTEX_POINT(s1), 
+				VERTEX_POINT(c0), VERTEX_POINT(c1),
+				&a, &b)
+				)
+			{
+				GH_vertex * i1 = GH_createIVertex(
+					VERTEX_POINT(s0), VERTEX_POINT(s1),
+					a);
+				GH_vertex * i2 = GH_createIVertex(
+					VERTEX_POINT(c0), VERTEX_POINT(c1),
+					b);
+				//printf("intersect @ %f %f\n", i1->c.x, i1->c.y);
+				GH_linkVerticies(i1, i2);
+
+				GH_sortedInsert(s0, s1, i1);
+				GH_sortedInsert(c0, c1, i2);
+				
+				intersect_found = true;
+
+			}
+		END_FOR_VERTEX_NI_PAIR(clip, c0, c1);
+	END_FOR_VERTEX_NI_PAIR(subject, s0, s1);
+
+	return intersect_found;
+}
+
+/*
+ * Quoted from Greiner-Hormann '98
+ *
+ * Phase two is analogous to the chalk cart in Section 3. We trace each
+ * polygon once and mark entry and exit points to the other
+ * polygons interior. We start at the polygons first vertex and detect
+ * using the even/odd rule whether this point lies inside the other 
+ * polygon or not. Then we move along the polygon verticies and mark the
+ * intersecting points that have been inserted in phase one (and marked
+ * by the intersect flag) alternately as entry and exit points respectively
+ */
+void GH_phase_two_perpoly(struct GH_vertex * p, struct GH_vertex * other, enum GH_op_t op)
+{
+	/* pseudo code for phase 2:
+	 * If p0 inside other polygon
+	 * 	status = exit
+	 * else
+	 * 	status = entry
+	 * end if
+	 * for each vertex Pi of polygon do
+	 * 	if (pi->intersect then
+	 * 		pi->entry_exit = status
+	 * 		status = !status
+	 * 	end if
+	 * end for
+	 */
+	
+	/* Entry true, exit false */
+	bool status;
+
+	switch (op)
+	{
+		case GH_op_intersect: /* clipping */
+			status = !GH_pointInPoly(other, VERTEX_POINT(p));
+			break;
+		case GH_op_union:
+			status = GH_pointInPoly(other, VERTEX_POINT(p));			
+	}
+	GH_vertex * v;
+	
+	FOR_VERTEX_I(p, v);
+	{
+		v->entry_exit = status;
+		switch (op)
+		{
+			case GH_op_intersect: /* clipping */
+				status = !status;
+			break;	
+		}
+	}
+	END_FOR_VERTEX_I(p, v);
+}
+
+void GH_phase_two(struct GH_vertex * p1, struct GH_vertex * p2, enum GH_op_t op)
+{
+	GH_phase_two_perpoly(p1, p2, op);
+	GH_phase_two_perpoly(p2, p1, op);
+}
+
+/* Writes a new polygon at the current poly ptr + moves the pointer to the new location */
+
+#define GH_NEWPOLYGON() { current_poly_start = output_polygon_pos; \
+	if (*output_polygon_pos) \
+	output_vertex_pos = output_polygon_pos = &((*output_polygon_pos)->nextPoly);}
+
+/* allocate a new vertex, store its location where the vertex_output_ptr points to + advance the
+ * vertex output ptr to the ->next field */ 
+void GH_newVertex(GH_vertex * current_vertex, GH_vertex *** vertex_output_ptr)
+{
+	**vertex_output_ptr = alloc_GH_vertex();
+	(**vertex_output_ptr)->c = current_vertex->c;
+	*vertex_output_ptr = &((**vertex_output_ptr)->next);
+	printf("Create point %f %f [%p] %d\n", current_vertex->c.x, current_vertex->c.y, current_vertex, current_vertex->done);
+}
+bool GH_pointCompare(GH_point * a, GH_point * b)
+{
+	double deltaX = fabs(a->x - b->x);
+	double deltaY = fabs(a->y - b->y);
+	printf("Point comp %f %f %f %f %f %f\n", a->x, a->y, b->x, b->y, deltaX, deltaY);
+	// TODO: epsilon needs to be higher
+	return (deltaX < 0.00001 && deltaY < 0.00001);
+}
+GH_vertex * GH_phase_three(struct GH_vertex * subject, struct GH_vertex * clip)
+{
+	GH_vertex * subject_tail = __find_last(subject);
+	GH_vertex * clip_tail = __find_last(clip);
+	GH_vertex * current;
+
+	// Output variables
+	GH_vertex * output_start = NULL;
+	GH_vertex ** current_poly_start = NULL;
+	GH_vertex ** output_polygon_pos = &output_start;
+	GH_vertex ** output_vertex_pos = &output_start;
+	
+	while (GH_polyHasIntersectingNotDone(subject))
+	{
+		current = __find_intersect_notdone(subject);
+		assert(!current->done);
+
+		GH_NEWPOLYGON();
+		GH_newVertex(current, &output_vertex_pos);
+		current->done = true;
+		do {
+			if (current->entry_exit)
+			{
+				printf("Start entry chain\n");
+				/* is an entry */
+				do {
+					GH_vertex * last = current;
+					current = current->next;
+					if (current == NULL)
+					{
+						assert(last == subject_tail || last == clip_tail);
+	
+						// We're at the end of a polygon, fixup depending on which it is
+						if (last == subject_tail)
+							current = subject;
+						else if (last == clip_tail)
+							current = clip;
+					}
+
+					// Check if we're trying to add the first again
+					if (!GH_pointCompare(VERTEX_POINT(current), VERTEX_POINT(*current_poly_start)))
+						GH_newVertex(current, &output_vertex_pos);
+				} while (!current->intersect);
+			} else {
+				printf("Start exit chain\n");
+
+				/* is an exit */
+				do {
+					GH_vertex * last = current;
+					current = current->prev;
+					if (current == NULL)
+					{
+						assert(last == subject || last == clip);
+
+						// We're at the end of a polygon, fixup depending on which it is
+						if (last == subject)
+							current = subject_tail;
+						else if (last == clip)
+							current = clip_tail;
+					}
+	
+					if (!GH_pointCompare(VERTEX_POINT(current), VERTEX_POINT(*current_poly_start)))
+						GH_newVertex(current, &output_vertex_pos);
+				} while (!current->intersect);
+			}
+			current->done = true;
+			printf("Breakout!\n");
+			current = current->neighbor;
+		} while (!GH_pointCompare(VERTEX_POINT(current), VERTEX_POINT(*current_poly_start)));
+	}
+	return output_start;
+}
+
+/*
+ *  For clip - p1 = subject, p2 = clip
+ *
+ *  p1 / p2 will be destroyed!
+ */
+GH_vertex * GH_polygon_boolean(GH_vertex * p1, GH_vertex * p2, enum GH_op_t op)
+{
+	if (!GH_phase_one(p1, p2))
+		return NULL;
+
+	GH_phase_two(p1, p2, op);
+	return GH_phase_three(p1, p2);
+}
+
+
+void GH_free_polygons(GH_vertex * polys)
+{
+	GH_vertex * cur_vertex;
+	while (polys)
+	{
+		GH_vertex * nextpoly = polys->nextPoly;
+		cur_vertex = polys;
+
+		while (cur_vertex)
+		{
+			GH_vertex * tofree = cur_vertex;
+			cur_vertex = cur_vertex->next;
+			free(cur_vertex);
+		}
+		polys = nextpoly;
+	}
+}
+
+GH_vertex * GH_polyPoint(GH_vertex * v, double x, double y)
+{
+	GH_vertex * nv = alloc_GH_vertex();
+	nv->c.x = x;
+	nv->c.y = y;
+
+	if (v)
+		GH_insertAfter(v, nv);
+	return nv;
+}
+
+GH_vertex * GH_getPolyPoint(GH_vertex *v, double * x, double * y)
+{
+	assert(v);
+	assert(x);
+	assert(y);
+
+	*x = v->c.x;
+	*y = v->c.y;
+
+	return v->next;
+}
+

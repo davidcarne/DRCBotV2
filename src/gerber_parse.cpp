@@ -1,3 +1,25 @@
+/*
+ *  Portions Copyright 2006,2009 David Carne and 2007 Spark Fun Electronics
+ *
+ *  David Carne 2006, 2007/08/06, 2009/05/13
+ *
+ *  This file is part of gerberDRC.
+ *
+ *  gerberDRC is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Foobar is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -14,22 +36,9 @@
 #include "gerber_parse.h"
 #include "fileio.h"
 #include "main.h"
-// Overall application layout
-// Scanner converts gerber into gerber file /w params for single-set-things
-//  + rejects obviously bad gerbers
-//
-// Interpreter runs the gerber code to create a set of vectors defining paths
-// Stores in quadtree
+
+
 // Also takes overlapping vectors to mean single signal - IPC365 helpful here?
-//
-// DRC takes interpreted signals - checks spacing.
-
-
-
-
-
-
-
 
 /********************************************************/
 /* 274X parse code                                      */
@@ -40,11 +49,11 @@
 
 
 // Initialize the image params to the values specified by the standard
-void initialize_rs274x_image_param_struct(struct rs274x_image_param * ip)
+void initialize_rs274x_image_param_struct(struct RS274X_Program::rs274x_image_param * ip)
 {
 	// Image Polarity defaults to POS
 	ip->IP_set = false;
-	ip->IP_polarity = IP_POS;
+	ip->IP_polarity = RS274X_Program::IP_POS;
 
 	// I don't have information on how the image justify is initialized
 	ip->IJ_set = false;	
@@ -53,7 +62,7 @@ void initialize_rs274x_image_param_struct(struct rs274x_image_param * ip)
 
 	// Image rotate, again, probably never used, but completeness
 	ip->IR_set = false;
-	ip->IR_set = IR_0;
+	ip->IR_set = RS274X_Program::IR_0;
 	
 	// Plotter film is probably going to be unused - but I'll fill it in
 	// for sake of completion
@@ -70,21 +79,14 @@ void initialize_rs274x_image_param_struct(struct rs274x_image_param * ip)
 	ip->IO_offset_B = 0.0;
 }
 
-struct aperture * create_aperture()
-{
-	struct aperture * rv = (struct aperture *)calloc(sizeof(struct aperture),1);
-	return rv;
-}
-
-
 
 // TODO: These seem like reasonale defaults
 // Ask SF what they see
-void initialize_parse_info(struct parse_info *pi)
+void initialize_parse_info(struct RS274X_Program::parse_info *pi)
 {
 	pi->parse_set = false;
-	pi->lt = OMIT_LEADING;
-	pi->ai = COORD_ABS;
+	pi->lt = RS274X_Program::OMIT_LEADING;
+	pi->ai = RS274X_Program::COORD_ABS;
 	pi->N_width = 2;
 	pi->G_width = 2;
 	pi->D_width = 3;
@@ -99,30 +101,21 @@ void initialize_parse_info(struct parse_info *pi)
 
 
 
-struct gerber_file * create_and_init_gerber_rep()
+RS274X_Program * create_and_init_gerber_rep()
 {
-	struct gerber_file * file_rep = (struct gerber_file *)calloc(sizeof(struct gerber_file), 1);
-	initialize_rs274x_image_param_struct(&(file_rep->image_params));
-	initialize_parse_info(&(file_rep->parse_settings));
+	RS274X_Program * file_rep = new RS274X_Program();
+	
+	initialize_rs274x_image_param_struct(&(file_rep->m_image_params));
+	initialize_parse_info(&(file_rep->m_parse_settings));
 
-	file_rep->ap_map = std::map<std::string, Macro_VM *>();
-	file_rep->first_gcode = NULL;
-	file_rep->last_gcode = NULL;
+	file_rep->m_macro_name_to_aperture = std::map<std::string, Macro_VM *>();
+
 	return file_rep;
 }
 
-void append_gcode_block(struct gerber_file * gerb, struct gcode_block * blk)
+void append_gcode_block(RS274X_Program * gerb, const struct RS274X_Program::gcode_block & blk)
 {
-	blk->next = NULL;
-	if (gerb->last_gcode != NULL)
-	{
-		assert(gerb->last_gcode->next == NULL);
-		gerb->last_gcode->next = blk;
-		gerb->last_gcode = blk;
-	} else {
-		gerb->last_gcode = blk;
-		gerb->first_gcode = blk;
-	}
+	gerb->m_operations.push_back(blk);
 }
 
 #define INTPREF(a) ((a)[0] << 8) | ((a)[1])
@@ -143,8 +136,6 @@ void free_delim_list(char**dlist)
 
 char ** breakout_delim(char * startptr, char * endptr, char delim, int * cr)
 {
-	//printf("Attempting to breakout %s %s [%c]\n", startptr, endptr, delim);
-	
 	char * iter;
 	long count = 1;
 	long block_iter;
@@ -159,8 +150,6 @@ char ** breakout_delim(char * startptr, char * endptr, char delim, int * cr)
 			count ++;
 	}
 	
-	//printf("Found %d blocks\n", count);
-
 	char ** rv = (char **)malloc(sizeof(char*)*(count + 1));
 	
 	rv[count] = 0;
@@ -174,7 +163,6 @@ char ** breakout_delim(char * startptr, char * endptr, char delim, int * cr)
 			blockend = endptr;
 		
 		rv[block_iter] = strndup(iter, blockend - iter);
-	//	printf("Block = %s\n",rv[block_iter]);
 		iter = blockend + 1;
 
 		
@@ -192,7 +180,7 @@ char ** breakout_delim(char * startptr, char * endptr, char delim, int * cr)
  * purpose parser - I'll get around to implementing these.
  * but for the sparkfun DRC, I don't need them
  * **********************************************************/
-bool handle_274X_IJ(char * block, struct gerber_file * target)
+bool handle_274X_IJ(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'I') && (block[1] == 'J'));
 
@@ -200,7 +188,7 @@ bool handle_274X_IJ(char * block, struct gerber_file * target)
 	return true;
 }
 
-bool handle_274X_IN(char * block, struct gerber_file * target)
+bool handle_274X_IN(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'I') && (block[1] == 'N'));
 
@@ -208,7 +196,7 @@ bool handle_274X_IN(char * block, struct gerber_file * target)
 	return true;
 }
 
-bool handle_274X_IO(char * block, struct gerber_file * target)
+bool handle_274X_IO(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'I') && (block[1] == 'O'));
 
@@ -216,7 +204,7 @@ bool handle_274X_IO(char * block, struct gerber_file * target)
 	return true;
 }
 
-bool handle_274X_IP(char * block, struct gerber_file * target)
+bool handle_274X_IP(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'I') && (block[1] == 'P'));
 
@@ -224,7 +212,7 @@ bool handle_274X_IP(char * block, struct gerber_file * target)
 	return true;
 }
 
-bool handle_274X_IR(char * block, struct gerber_file * target)
+bool handle_274X_IR(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'I') && (block[1] == 'R'));
 
@@ -232,7 +220,7 @@ bool handle_274X_IR(char * block, struct gerber_file * target)
 	return true;
 }
 
-bool handle_274X_PF(char * block, struct gerber_file * target)
+bool handle_274X_PF(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'P') && (block[1] == 'F'));
 
@@ -245,7 +233,7 @@ bool handle_274X_PF(char * block, struct gerber_file * target)
  * here as well
  * ***************************************************************************/
 
-bool handle_274X_AD(char * block, struct gerber_file * target)
+bool handle_274X_AD(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'A') && (block[1] == 'D'));
 	
@@ -255,7 +243,7 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 	if (block[2] != 'D')
 	{
 		DBG_VERBOSE_PF("Inval aperture define value\n");
-		// HACK: I hate people. This is completely invalid, yet some gerber software spits out
+		// HACK: This is completely invalid, yet some gerber software spits out
 		// things like %AD*% - and we have to parse it. Argh.
 		return true;
 	}
@@ -266,16 +254,14 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 
 	if (block + 3 == parseptr)
 	{
-		if (debug_level == DEBUG_ERROR)
-			printf("0 length DCODE ID\n");
+		DBG_ERR_PF("0 length DCODE ID\n");
 		
 		return false;
 	}
 
 	if ((ap_num < 10) || (ap_num >= MAX_APERTURES))
 	{
-		if (debug_level == DEBUG_ERROR)
-			printf("Invalid DCODE ID %d\n", ap_num);
+		DBG_ERR_PF("Invalid DCODE ID %ld\n", ap_num);
 		return false;
 	}
 
@@ -288,12 +274,12 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 	else
 		typestr_len = end_typestr - parseptr;
 	
-	struct aperture * ap;
+	struct RS274X_Program::aperture * ap;
 
-	if (target->ap_list[ap_num] != NULL)
+	if (target->m_ap_map[ap_num] != NULL)
 	{
-		if (debug_level >= DEBUG_ERROR)
-			printf( "Error - attempted to redefine an aperture.\n"
+		
+		DBG_ERR_PF( "Error - attempted to redefine an aperture.\n"
 				" [This is technically allowed, but not parsed]\n");
 		return false;
 	}
@@ -320,93 +306,85 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 		// Oval args [4] - OX, OY, [IX, IY]
 		// Poly args [5] - OD, NS, [DR, IX, IY]
 
-		if (debug_level >= DEBUG_MSG)
-			printf("aperture define %d %c [%s]\n", ap_num,ap_type, block);
+		DBG_MSG_PF("aperture define %ld %c [%s]\n", ap_num,ap_type, block);
 	
 		// now allocate a new aperture
-		ap = create_aperture();
+		struct RS274X_Program::aperture ap;
 
 		
 		switch (ap_type)
 		{
 			case 'C':
 				if (param_count < 1)
-				{
-					if (debug_level >= DEBUG_ERROR)
-						printf("Not enough args for circle aperture\n");
+				{	DBG_ERR_PF("Not enough args for circle aperture\n");
 					return false;
 				}
-				ap->type = AP_CIRCLE;
-				ap->circle_p.OD = atof(arg_list[0]);
+				ap.type = RS274X_Program::AP_CIRCLE;
+				ap.circle_p.OD = atof(arg_list[0]);
 
 				if (param_count > 1)
-					ap->circle_p.XAHD = atof(arg_list[1]);
+					ap.circle_p.XAHD = atof(arg_list[1]);
 				
 				if (param_count > 2)
-					ap->circle_p.YAHD = atof(arg_list[2]);
+					ap.circle_p.YAHD = atof(arg_list[2]);
 
 				break;
 			case 'R':
 				if (param_count < 2)
 				{
-					if (debug_level >= DEBUG_ERROR)
-						printf("Not enough args for rect aperture\n");
+					DBG_ERR_PF("Not enough args for rect aperture\n");
 					return false;
 				}
-				ap->type = AP_RECT;
-				ap->rect_p.XAD = atof(arg_list[0]);
-				ap->rect_p.YAD = atof(arg_list[1]);				
+				ap.type = RS274X_Program::AP_RECT;
+				ap.rect_p.XAD = atof(arg_list[0]);
+				ap.rect_p.YAD = atof(arg_list[1]);				
 				if (param_count > 2)
-					ap->rect_p.XAHD = atof(arg_list[1]);
+					ap.rect_p.XAHD = atof(arg_list[1]);
 				
 				if (param_count > 3)
-					ap->rect_p.YAHD = atof(arg_list[2]);
+					ap.rect_p.YAHD = atof(arg_list[2]);
 				
 				break;
 
 			case 'O':
 				if (param_count < 2)
 				{
-					if (debug_level >= DEBUG_ERROR)
-						printf("Not enough args for oval aperture\n");
+					DBG_ERR_PF("Not enough args for oval aperture\n");
 					return false;
 				}
-				ap->type = AP_OVAL;
-				ap->oval_p.XAD = atof(arg_list[0]);
-				ap->oval_p.YAD = atof(arg_list[1]);				
+				ap.type = RS274X_Program::AP_OVAL;
+				ap.oval_p.XAD = atof(arg_list[0]);
+				ap.oval_p.YAD = atof(arg_list[1]);				
 				if (param_count > 2)
-					ap->oval_p.XAHD = atof(arg_list[1]);
+					ap.oval_p.XAHD = atof(arg_list[1]);
 				
 				if (param_count > 3)
-					ap->oval_p.YAHD = atof(arg_list[2]);
+					ap.oval_p.YAHD = atof(arg_list[2]);
 				break;
 				
 			case 'P':
 				if (param_count < 2)
 				{
-					if (debug_level >= DEBUG_ERROR)
-						printf("Not enough args for poly aperture\n");
+					DBG_ERR_PF("Not enough args for poly aperture\n");
 					return false;
 				}
-				ap->type = AP_POLY;
+				ap.type = RS274X_Program::AP_POLY;
 
-				ap->poly_p.OD = atof(arg_list[0]);
-				ap->poly_p.NS = atoi(arg_list[1]);
+				ap.poly_p.OD = atof(arg_list[0]);
+				ap.poly_p.NS = atoi(arg_list[1]);
 
 				if (param_count > 2)
-					ap->poly_p.DR = atoi(arg_list[2]);
+					ap.poly_p.DR = atoi(arg_list[2]);
 				
 				if (param_count > 3)
-					ap->poly_p.XAHD = atoi(arg_list[3]);
+					ap.poly_p.XAHD = atoi(arg_list[3]);
 				
 				if (param_count > 4)
-					ap->poly_p.YAHD = atoi(arg_list[4]);
+					ap.poly_p.YAHD = atoi(arg_list[4]);
 				break;
 				
 			case 'T':
-				
-				if (debug_level >= DEBUG_ERROR)
-					printf("Error - ap type T not yet supported\n");
+				DBG_ERR_PF("Error - ap type T not yet supported\n");
 				return false;	
 		}
 		if (arg_list)
@@ -414,13 +392,12 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 	} else {
 		// Check if it exists in the macro list
 		// However - right now we can't parse macros
-		if (debug_level >= DEBUG_MSG)
-			printf("aperture define %d MACRO [%s]\n", ap_num, block);
+		DBG_MSG_PF("aperture define %ld MACRO [%s]\n", ap_num, block);
 		
-		ap = create_aperture();
-		ap->type = AP_MACRO;
-		ap->macro_p.macro_name = strndup(parseptr, typestr_len-1);
-		ap->macro_p.compiled_macro = target->ap_map[ap->macro_p.macro_name];
+		struct RS274X_Program::aperture ap;
+		ap.type = RS274X_Program::AP_MACRO;
+		ap.macro_p.macro_name = strndup(parseptr, typestr_len-1);
+		ap.macro_p.compiled_macro = target->m_macro_name_to_aperture[ap.macro_p.macro_name];
 		
 		parseptr += typestr_len;
 		
@@ -440,7 +417,7 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 			int i=0;
 			while (*afollow != NULL)
 			{
-				printf("Arg: %s\n", *afollow);
+				DBG_MSG_PF("Arg: %s\n", *afollow);
 				args[i++] = atof(*afollow);
 				afollow ++;
 			}
@@ -448,14 +425,14 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 			if (arg_list)
 				free_delim_list(arg_list);
 			
-			ap->macro_p.params = args;
+			ap.macro_p.params = args;
 		} else {
-			ap->macro_p.params = NULL;
+			ap.macro_p.params = NULL;
 		}
-		printf("Looking up macro %s [%p]\n",ap->macro_p.macro_name, ap->macro_p.compiled_macro);
+		DBG_VERBOSE_PF("Looking up macro %s [%p]\n",ap.macro_p.macro_name, ap.macro_p.compiled_macro);
 	}
 	
-	target->ap_list[ap_num] = ap;
+	target->m_ap_map[ap_num] = ap;
 
 	return true;	
 }
@@ -465,7 +442,7 @@ bool handle_274X_AD(char * block, struct gerber_file * target)
 /************************************************************************/
 
 /* FS */
-bool handle_274X_FS(char * block, struct gerber_file * target)
+bool handle_274X_FS(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'F') && (block[1] == 'S'));
 	
@@ -473,34 +450,30 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 
 	// skip the block ID
 	block += 2;
-	//printf("%20s\n",block);
 	switch (*block) {
 		case 'L':
-			target->parse_settings.lt = OMIT_LEADING;
+			target->m_parse_settings.lt = RS274X_Program::OMIT_LEADING;
 			break;
 		case 'T':
-			target->parse_settings.lt = OMIT_TRAILING;
+			target->m_parse_settings.lt = RS274X_Program::OMIT_TRAILING;
 			break;
 		default:
-			if (debug_level >= DEBUG_ERROR)
-			{
-				printf("Unrecognized Lead / Trail selector %c in FS\n", *block);
-				return false;
-			}
+			DBG_ERR_PF("Unrecognized Lead / Trail selector %c in FS\n", *block);
+			return false;
+			
 
 	}
 	block++;
 
 	switch (*block) {
 		case 'A':
-			target->parse_settings.ai = COORD_ABS;
+			target->m_parse_settings.ai = RS274X_Program::COORD_ABS;
 			break;
 		case 'I':
-			target->parse_settings.ai = COORD_INC;
+			target->m_parse_settings.ai = RS274X_Program::COORD_INC;
 			break;
 		default:
-			if (debug_level >= DEBUG_ERROR)
-				printf("Unrecognized ABS/INC selector %c in FS\n", *block);
+			DBG_ERR_PF("Unrecognized ABS/INC selector %c in FS\n", *block);
 
 	}
 	block++;
@@ -510,11 +483,10 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 	{
 		char * numend;
 		*block++;
-		target->parse_settings.N_width = strtol(block, &numend, 10);
+		target->m_parse_settings.N_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Could not parse Nwidth in FS\n");
+			DBG_ERR_PF("Could not parse Nwidth in FS\n");
 			return false;
 		}
 
@@ -526,11 +498,10 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 	{
 		char * numend;
 		*block++;
-		target->parse_settings.G_width = strtol(block, &numend, 10);
+		target->m_parse_settings.G_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Could not parse Gwidth in FS\n");
+			DBG_ERR_PF("Could not parse Gwidth in FS\n");
 			return false;
 		}
 
@@ -544,27 +515,23 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Error - invalid X lead specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid X lead specifier [%c] in FS\n",*block);
 					
 			return false;
 		}
-		target->parse_settings.X_lead = (*block) - '0';	
+		target->m_parse_settings.X_lead = (*block) - '0';	
 
 		// Go to the second digit of X spec
 		*block++;
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Error - invalid X trail specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid X trail specifier [%c] in FS\n",*block);
 					
 			return false;
 		}
-		target->parse_settings.X_trail = (*block) - '0';	
+		target->m_parse_settings.X_trail = (*block) - '0';	
 
-		//printf("X_lead = %d\n",target->parse_settings.X_lead);
-		//printf("X_trail = %d\n",target->parse_settings.X_trail);
 		// Go past the last digit
 		*block++;
 	}
@@ -576,28 +543,23 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Error - invalid Y lead specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid Y lead specifier [%c] in FS\n",*block);
 					
 			return false;
 		}
-		target->parse_settings.Y_lead = (*block) - '0';	
+		target->m_parse_settings.Y_lead = (*block) - '0';	
 
 		// Go to the second digit of Y spec
 		*block++;
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Error - invalid Y trail specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid Y trail specifier [%c] in FS\n",*block);
 					
 			return false;
 		}
-		target->parse_settings.Y_trail = (*block) - '0';	
+		target->m_parse_settings.Y_trail = (*block) - '0';	
 
-
-		//printf("Y_lead = %d\n",target->parse_settings.Y_lead);
-		//printf("Y_trail = %d\n",target->parse_settings.Y_trail);
 		// Go past the last digit
 		*block++;
 	}
@@ -608,11 +570,10 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 	{
 		char * numend;
 		*block++;
-		target->parse_settings.D_width = strtol(block, &numend, 10);
+		target->m_parse_settings.D_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Could not parse Dwidth in FS\n");
+			DBG_ERR_PF("Could not parse Dwidth in FS\n");
 			return false;
 		}
 
@@ -624,11 +585,10 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 	{
 		char * numend;
 		*block++;
-		target->parse_settings.M_width = strtol(block, &numend, 10);
+		target->m_parse_settings.M_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			if (debug_level >= DEBUG_ERROR)
-				printf("Could not parse Mwidth in FS\n");
+			DBG_ERR_PF("Could not parse Mwidth in FS\n");
 			return false;
 		}
 
@@ -636,37 +596,36 @@ bool handle_274X_FS(char * block, struct gerber_file * target)
 	}
 
 	
-	target->parse_settings.parse_set = true;
+	target->m_parse_settings.parse_set = true;
 	return true;
 }
 
 /* OF - Offset */
 /* MO - Mode */
-bool handle_274X_MO(char * block, struct gerber_file * target)
+bool handle_274X_MO(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'M') && (block[1] == 'O'));
 	block += 2;
-	enum unit_mode um;
+	enum RS274X_Program::unit_mode um;
 
 	if ((block[0] == 'M') && (block[1] == 'M'))
 	{
 		
-		um = UNITMODE_MM;
+		um = RS274X_Program::UNITMODE_MM;
 	} else if ((block[0] == 'I') && (block[1] == 'N'))
 	{
-		um = UNITMODE_IN;
+		um = RS274X_Program::UNITMODE_IN;
 	} else {
 
-		if (debug_level >= DEBUG_ERROR)
-			printf("Error - invalid Mode line\n");
+		DBG_ERR_PF("Error - invalid Mode line\n");
 
 		return false;
 	}
 
-	struct gcode_block * eob = (struct gcode_block *)malloc(sizeof(struct gcode_block));
-	eob->op = GCO_DIR;
-	eob->gdd_data.dir = DIR_MO;
-	eob->gdd_data.MO_P.um = um;
+	struct RS274X_Program::gcode_block eob;
+	eob.op = RS274X_Program::GCO_DIR;
+	eob.gdd_data.dir = RS274X_Program::DIR_MO;
+	eob.gdd_data.MO_P.um = um;
 	append_gcode_block(target, eob);
 
 	return true;
@@ -678,25 +637,25 @@ bool handle_274X_MO(char * block, struct gerber_file * target)
  *
  *
  */
-bool handle_274X_AM(char ** cur_block_ptr, struct gerber_file * target, int * consumed)
+bool handle_274X_AM(char ** cur_block_ptr, RS274X_Program * target, int * consumed)
 {
 	*consumed = 0;
 	char * macroName = strdup(*cur_block_ptr + 2);
 	Macro_VM * vm = new Macro_VM();
 	
-	printf("Macro Name = %s\n",macroName);
+	DBG_VERBOSE_PF("Macro Name = %s\n",macroName);
 	*cur_block_ptr ++;
 	(*consumed)++;
 	
 	while (*cur_block_ptr != NULL)
 	{
 			(*consumed)++;
-			printf("Macro Consuming %s [%d]\n", *cur_block_ptr);
+			DBG_VERBOSE_PF("Macro Consuming %s\n", *cur_block_ptr);
 			if (parse_macro(vm,*cur_block_ptr))
-				printf("Parse_OK\n");
+				DBG_VERBOSE_PF("Parse_OK\n")
 			else
 			{
-				printf("Parse Failed!!!!\n");
+				DBG_ERR_PF("Macro parse failed.\n");
 				delete vm;
 				free(macroName);
 				return false;
@@ -705,7 +664,7 @@ bool handle_274X_AM(char ** cur_block_ptr, struct gerber_file * target, int * co
 			cur_block_ptr++;
 	}
 	std::string name_std(macroName);
-	target->ap_map[name_std] = vm;
+	target->m_macro_name_to_aperture[name_std] = vm;
 	free(macroName);
 
 	return true;
@@ -737,13 +696,12 @@ bool handle_274X_AM(char ** cur_block_ptr, struct gerber_file * target, int * co
  *
  */
  
-bool parse_274X_param_do_block(char ** cur_block_ptr, struct gerber_file * target, int * consumed)
+bool parse_274X_param_do_block(char ** cur_block_ptr, RS274X_Program * target, int * consumed)
 {
 	bool parse_ok = true;
 	
 	// for the most case, everything consumes a block
 	*consumed = 1;
-	//printf("BLOCK %c %c\n", **cur_block_ptr, *(*cur_block_ptr+1));
 	fflush(NULL);
 	// Ugly define macros for nice speedy [and clean looking!] switch statements
 	switch (INTPREF(*cur_block_ptr))
@@ -792,19 +750,22 @@ bool parse_274X_param_do_block(char ** cur_block_ptr, struct gerber_file * targe
 		case INTPM('L','P'):
 			if ((*cur_block_ptr)[2]!='D')
 			{
-				//printf("Cannot handle inverted polarity layers!!!\n");
-				//parse_ok = false;
+				DBG_ERR_PF("Cannot handle inverted polarity layers!!!\n");
+				parse_ok = false;
 			}
 			break;
+		
 			
+		case INTPM('O','F'):
+			// Don't care about offset at the moment
+			break;
 		default:
-			printf("unmatched 274X paramblock %s - len %d\n", *cur_block_ptr, strlen(*cur_block_ptr));
+			DBG_ERR_PF("unmatched 274X paramblock %s - len %ld\n", *cur_block_ptr, strlen(*cur_block_ptr));
+			//parse_ok = false;
 	}
 	
 	return parse_ok;
 	
-	//if (
-	//cur_block_ptr++;
 
 	// Parameters we need to handle:
 	
@@ -845,7 +806,7 @@ bool parse_274X_param_do_block(char ** cur_block_ptr, struct gerber_file * targe
 		
 }
 
-bool parse_274X_param(char ** cur_ptr, char * end_ptr, struct gerber_file * target)
+bool parse_274X_param(char ** cur_ptr, char * end_ptr, RS274X_Program * target)
 {
 	// Make sure that we're actually in a formal parameter
 	// This assert should always be true - just a safety net
@@ -857,8 +818,7 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, struct gerber_file * targ
 	// If there isn't an end of block pattern
 	if (end_char == NULL)
 	{
-		if (debug_level >= DEBUG_ERROR)
-			printf("Unmatched %% in 274X param");
+		DBG_ERR_PF("Unmatched %% in 274X param");
 
 		return false;
 	}
@@ -868,8 +828,6 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, struct gerber_file * targ
 	// Length of 274X param
 	int param_len = (end_char-1) - first_param_char + 1;
 	
-	//printf("%s\n",strndup(first_param_char,param_len));
-
 	
 	// Now we find how many blocks there are inside this param
 	long block_count = 0;
@@ -880,8 +838,8 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, struct gerber_file * targ
 			block_count++;
 	}
 
-	if (debug_level == DEBUG_VERBOSE)
-		printf("Block count = %d\n", block_count);
+	DBG_VERBOSE_PF("Block count = %ld\n", block_count);
+	
 	if (block_count == 0)
 		block_count = 1;
 	char **pblocks = (char**)malloc(sizeof(char *) * (block_count + 1));
@@ -908,8 +866,7 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, struct gerber_file * targ
 		// We also want to skip any return characters / whitespace
 		while (isspace(*param_iter) && param_iter < end_ptr) param_iter++;
 		
-		if (debug_level == DEBUG_VERBOSE)
-			printf("Block %d = %s\n", block_iter, pblocks[block_iter]);
+		DBG_VERBOSE_PF("Block %ld = %s\n", block_iter, pblocks[block_iter]);
 
 		assert (param_iter < end_ptr);
 	}
@@ -951,7 +908,7 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, struct gerber_file * targ
  *   									  */
 /**************************************************************************/
 /**************************************************************************/
-bool handle_274D_G(int code, struct gerber_file * target)
+bool handle_274D_G(int code, RS274X_Program * target)
 {
 	switch (code)
 	{
@@ -972,9 +929,9 @@ bool handle_274D_G(int code, struct gerber_file * target)
 		case 90: // Abs				- Pass
 		case 91: // Inc				- Pass
 		{
-			struct gcode_block * eob = (struct gcode_block *)malloc(sizeof(struct gcode_block));
-			eob->op = GCO_G;
-			eob->int_data = code;
+			struct RS274X_Program::gcode_block eob;
+			eob.op = RS274X_Program::GCO_G;
+			eob.int_data = code;
 			append_gcode_block(target, eob);
 			break;
 		}
@@ -990,7 +947,7 @@ bool handle_274D_G(int code, struct gerber_file * target)
 }
 
 // Returns the parsed coord [native form - uncorrected for mm / inches]
-bool parse_274D_coord(char ** coord_data_start, double * retval, char axis, struct parse_info * pi)
+bool parse_274D_coord(char ** coord_data_start, double * retval, char axis, struct RS274X_Program::parse_info * pi)
 {
 	int lead, trail;
 
@@ -1037,8 +994,7 @@ bool parse_274D_coord(char ** coord_data_start, double * retval, char axis, stru
 		{
 			if (hit_numeric)
 			{
-				if (debug_level >= DEBUG_ERROR)
-					printf("Sign constant in middle of numeric constant");
+				DBG_ERR_PF("Sign constant in middle of numeric constant");
 				return false;
 			}
 
@@ -1052,7 +1008,7 @@ bool parse_274D_coord(char ** coord_data_start, double * retval, char axis, stru
 		break;	
 	}
 
-	if (pi->lt == OMIT_TRAILING)
+	if (pi->lt == RS274X_Program::OMIT_TRAILING)
 	{
 		// we need to check if we need to scale the value by the missing digits
 		
@@ -1077,7 +1033,7 @@ bool parse_274D_coord(char ** coord_data_start, double * retval, char axis, stru
 	return true;
 }
 
-bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file * target, bool * finish_parse)
+bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * target, bool * finish_parse)
 {
 	// We don't include end_ptr because its off the end
 	int remain_len = end_ptr - *cur_ptr;
@@ -1086,8 +1042,7 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 	
 	if (end_of_block == NULL)
 	{
-		if (debug_level >= DEBUG_ERROR)
-			printf("ERROR - tried to parse unterminated GCODE block\n");
+		DBG_ERR_PF("ERROR - tried to parse unterminated GCODE block\n");
 		return false;
 	}
 	
@@ -1105,7 +1060,7 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 	{
 		if (remain_iter-- == 0)
 		{
-			printf("PARSE HANG - report this bug and send a test case!\n");
+			DBG_ERR_PF("PARSE HANG - please report this bug and send a test case!\n");
 			return false;
 		}
 
@@ -1133,10 +1088,9 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 					int val = strtol(temp_ptr, &error_loc, 10);
 					if (temp_ptr == error_loc)
 					{
-						if (debug_level >= DEBUG_ERROR)
-						{
-							printf("Could not parse %c command value!\n",code_dest);
-						}
+						
+						DBG_ERR_PF("Could not parse %c command value!\n",code_dest);
+						
 						return false;
 					}
 					temp_ptr = error_loc;
@@ -1144,19 +1098,17 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 					{
 						case 'M':
 							{
-								struct gcode_block * b = (struct gcode_block *)
-									malloc(sizeof(struct gcode_block));
-								b->op = GCO_M;
-								b->int_data = val;
+								struct RS274X_Program::gcode_block b;
+								b.op = RS274X_Program::GCO_M;
+								b.int_data = val;
 								append_gcode_block(target, b);
 							}
 							break;
 						case 'D':
 							{
-								struct gcode_block * b = (struct gcode_block *)
-									malloc(sizeof(struct gcode_block));
-								b->op = GCO_D;
-								b->int_data = val;
+								struct RS274X_Program::gcode_block b;
+								b.op = RS274X_Program::GCO_D;
+								b.int_data = val;
 								append_gcode_block(target, b);
 							}
 							break;
@@ -1175,10 +1127,8 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 							// returns false if it was an invalid gval
 							if (!handle_274D_G(val, target))	
 							{
-								if (debug_level >= DEBUG_ERROR)
-								{
-									printf("G-%d is not a valid command!\n", val);
-								}	
+								DBG_ERR_PF("G-%d is not a valid command!\n", val);
+									
 								return false;
 							}
 							break;			
@@ -1196,41 +1146,36 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 					double rv;
 					if (!parse_274D_coord(&temp_ptr, &rv, 
 							((coord_dest == 'X') || (coord_dest == 'I')) ? 'X' : 'Y',
-						       	&target->parse_settings))
+						       	&target->m_parse_settings))
 					{
-						if (debug_level >= DEBUG_ERROR)
-							printf("Couldn't parse num constant!\n");
+						DBG_ERR_PF("Couldn't parse num constant!\n");
 						return false;
 					}
 					
-					struct gcode_block * b = (struct gcode_block *)
-						malloc(sizeof(struct gcode_block));
-					
-					
+					struct RS274X_Program::gcode_block b;
 					
 					switch (coord_dest)
 					{
 						case 'X':
-							b->op = GCO_X;
+							b.op = RS274X_Program::GCO_X;
 							break;
 						case 'Y':
-							b->op = GCO_Y;
+							b.op = RS274X_Program::GCO_Y;
 							break;
 						case 'I':
-							b->op = GCO_I;
+							b.op = RS274X_Program::GCO_I;
 							break;
 						case 'J':
-							b->op = GCO_J;
+							b.op = RS274X_Program::GCO_J;
 							break;
 					}	
 	
-					b->dbl_data = rv;
+					b.dbl_data = rv;
 					append_gcode_block(target, b);
 					break;
 				}	
 			default:
-				if (debug_level >= DEBUG_ERROR)
-					printf("Error - couldn't parse GCODE statement\n");
+				DBG_ERR_PF("Error - couldn't parse GCODE statement\n");
 				return false;
 			break;
 		}
@@ -1239,8 +1184,8 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 	// Sometimes we need to ignore a datablock, so thats what this flag is for
 	if (!datablock_ignore)
 	{
-		struct gcode_block * eob = (struct gcode_block *)malloc(sizeof(struct gcode_block));
-		eob->op = GCO_END;
+		struct RS274X_Program::gcode_block eob;
+		eob.op = RS274X_Program::GCO_END;
 		append_gcode_block(target, eob);
 	}
 
@@ -1253,18 +1198,15 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, struct gerber_file
 // Handy function to eat + echo an unknown line
 void skip_unknown_line(char ** cur_ptr, char * end_ptr)
 {
-	printf("Unknown line: ");
+	DBG_ERR_PF("Unknown line: ");
 	while (((*cur_ptr) < end_ptr) && ((**cur_ptr) != 0xD) && ((**cur_ptr) != 0xA)) putchar(*(*cur_ptr)++);
 	while (((*cur_ptr) < end_ptr) && (((**cur_ptr) == 0xD) || ((**cur_ptr) == 0xA))) *(*cur_ptr)++;
-	printf("\n");
+	DBG_ERR_PF("\n");
 }
 
 
-bool parse_gerb_mem_block(char * cur_ptr, char * end_ptr, struct gerber_file * file_rep)
+bool parse_gerb_mem_block(char * cur_ptr, char * end_ptr, RS274X_Program * file_rep)
 {
-	//printf("Starting parsing %p %p\n", cur_ptr, end_ptr);
-	//printf("End_ptr def = %d\n", *(end_ptr -1));
-
 	bool finish_parse = false;
 	while (cur_ptr < end_ptr && !finish_parse)
 	{
@@ -1299,20 +1241,20 @@ bool parse_gerb_mem_block(char * cur_ptr, char * end_ptr, struct gerber_file * f
 	return true;
 }
 
-struct gerber_file * create_gerber_file_rep_from_filename(char * filename)
+sp_RS274X_Program parseRS274X(char * filename)
 {
 	struct mapped_file mfile = map_file(filename);
 
 	if (!mfile.valid)
 	{
-		printf("Could not load file %s\n", filename);
-		return NULL;
+		DBG_ERR_PF("Could not load file %s\n", filename);
+		return sp_RS274X_Program();
 	}
 
 	char * cur_ptr = (char*)mfile.dataptr;
 	char * end_ptr = (char*)mfile.dataptr + mfile.file_len;
 	
-	struct gerber_file * file_rep = create_and_init_gerber_rep();
+	RS274X_Program * file_rep = create_and_init_gerber_rep();
 
 	bool parse_ok = parse_gerb_mem_block(cur_ptr, end_ptr, file_rep);
 	
@@ -1320,34 +1262,10 @@ struct gerber_file * create_gerber_file_rep_from_filename(char * filename)
 	
 	if (!parse_ok)
 	{
-		// TODO - there be memory leaks here. Fix them
-		free(file_rep);
-		return NULL;
+		delete file_rep;
+		return sp_RS274X_Program();
 	}
 
-	return file_rep;
+	return sp_RS274X_Program(file_rep);
 
 }
-
-void free_aperture(struct aperture * ap)
-{
-	free(ap);
-}
-void free_gerber_file_rep(struct gerber_file * rep)
-{
-	for (int i=0; i<100; i++)
-		if (rep->ap_list != NULL)
-			free_aperture(rep->ap_list[i]);
-	
-	struct gcode_block * gptr = rep->first_gcode;
-	while (gptr != NULL)
-	{
-		struct gcode_block * nextptr = gptr->next;
-		free(gptr);
-		
-		gptr = nextptr;
-	}
-	free(rep);
-}
-
-

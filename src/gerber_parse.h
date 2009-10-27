@@ -1,3 +1,28 @@
+/*
+ *  Portions Copyright 2006,2009 David Carne and 2007 Spark Fun Electronics
+ *
+ *  David Carne 2006, 2007/08/06, 2009/05/13
+ *
+ *  This file is part of gerberDRC.
+ *
+ *  gerberDRC is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Foobar is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+
+#include <boost/shared_ptr.hpp>
+
 #include <map>
 #include <string>
 #include <vector>
@@ -34,43 +59,48 @@
  * 	List of apertures /w compiled macros, image params
  */
 
-enum image_param_polarity { IP_POS, IP_NEG };
-enum image_param_justify { IJ_LEFT, IJ_CENTER };
-enum image_param_rotate { IR_0, IR_90, IR_180, IR_270 };
 
-struct rs274x_image_param {
-	// IJ - Image justify
-	// This probably won't be used in the DRC or anything
-	bool IJ_set;
-	enum image_param_justify IJ_justify_A;
-	enum image_param_justify IJ_justify_B;
-	double IJ_offset_A;
-	double IJ_offset_B;
+#define MAX_APERTURES 1000
 
-	// IN - Image name
-	bool IN_set;
-	char * IN_value;
-
-	// IO - Image offset
-	// // How is this used in comparison to the IJ offset?
-	bool IO_set;
-	double IO_offset_A;
-	double IO_offset_B;
+class RS274X_Program {
+public:
+	enum image_param_polarity { IP_POS, IP_NEG };
+	enum image_param_justify { IJ_LEFT, IJ_CENTER };
+	enum image_param_rotate { IR_0, IR_90, IR_180, IR_270 };
 	
-	// IP - image polarity
-	bool IP_set;
-	enum image_param_polarity IP_polarity;
+	struct rs274x_image_param {
+		// IJ - Image justify
+		// This probably won't be used in the DRC or anything
+		bool IJ_set;
+		enum image_param_justify IJ_justify_A;
+		enum image_param_justify IJ_justify_B;
+		double IJ_offset_A;
+		double IJ_offset_B;
+		
+		// IN - Image name
+		bool IN_set;
+		char * IN_value;
+		
+		// IO - Image offset
+		// // How is this used in comparison to the IJ offset?
+		bool IO_set;
+		double IO_offset_A;
+		double IO_offset_B;
+		
+		// IP - image polarity
+		bool IP_set;
+		enum image_param_polarity IP_polarity;
+		
+		// IR - Image rotation
+		bool IR_set;
+		enum image_param_rotate IR_rotate;
+		
+		// PF - Plotter film
+		bool PF_set;
+		char * PF_value;
+	};
 	
-	// IR - Image rotation
-	bool IR_set;
-	enum image_param_rotate IR_rotate;
-
-	// PF - Plotter film
-	bool PF_set;
-	char * PF_value;
-};
-
-enum aperture_type {
+	enum aperture_type {
 		AP_CIRCLE,
 		AP_RECT,
 		AP_OVAL,
@@ -78,192 +108,195 @@ enum aperture_type {
 		AP_T, // NO DOCS ON THIS ONE! Thermal?
 		AP_MACRO
 	};
-
-struct aperture {
-	enum aperture_type type;
-	union {
-		// Standard Circle aperture
-		struct {
-			double OD;
-			double XAHD;
-			double YAHD;
-		} circle_p;
-		
-		// Standard Rect aperture
-		struct {
-
-			double XAD;
-			double YAD;
-			double XAHD;
-			double YAHD;
-			
-		} rect_p;
-
-		// Standard Oval aperture
-		struct {
-			double XAD;
-			double YAD;
-			double XAHD;
-			double YAHD;
-		} oval_p;
-
-		// Standard Poly aperture
-		struct {
-			double OD;
-			double NS;
-			double DR;
-			double XAHD;
-			double YAHD;
-
-		} poly_p;
-
-		struct {
-			double * params;
-			int num_params;
-			char * macro_name;
-			Macro_VM * compiled_macro;
-		} macro_p;
-	};
-
-};
-
-enum omit_lead_trail {
-	OMIT_LEADING,
-	OMIT_TRAILING
-};
-
-enum coord_abs_inc {
-	COORD_ABS,
-	COORD_INC
-};
-
-enum unit_mode {
-	UNITMODE_IN,
-	UNITMODE_MM
-};
-
-struct parse_info {
-	bool parse_set;
-
-	enum omit_lead_trail lt;
-	enum coord_abs_inc ai;
-
-	int N_width;
-	int G_width;
-	int D_width;
-	int M_width;
-
-	int X_lead;
-	int X_trail;
-	int Y_lead;
-	int Y_trail;
-
-	// Now encoded as directives
-	//enum unit_mode um;
-};
-
-enum layer_polar_t {
-	LP_C,
-	LP_D
-};
-
-enum gcode_directive_type_t {
-	DIR_AS,
-	DIR_FS,
-	DIR_MI,
-	DIR_MO,
-	DIR_OF,
-	DIR_SF,
-	LY_KO,
-	LY_LN,
-	LY_LP,
-	LY_SR
-};
-enum gcode_op_type {
-	GCO_G,
-	GCO_M,
-	GCO_D,
-	GCO_X,
-	GCO_Y,
-	GCO_I,
-	GCO_J,
-	GCO_DIR, // Special GCODE op for directive
-	GCO_END
-};
-struct gcode_directive_data_t {
-	enum gcode_directive_type_t dir;
-	union {
-		struct {
-			char A, B;
-		} AS_P;
-
-		struct {
-			enum coord_abs_inc ai;
-		} FS_P;
-
-		struct {
-		} KO_P;
-
-		struct {
-			char * name;
-		} LN_P;
-		
-		struct {
-			enum layer_polar_t lp;
-		} LP_P;
-
-		struct {
-			bool mir_A;
-			bool mir_B;
-		} MI_P;
-
-		struct {
-			enum unit_mode um;
-		} MO_P;
-
-		struct {
-			double A;
-			double B;
-		} OF_P;
-
-		struct {
-			double A;
-			double B;
-		} SF_P;
-
-	};
-};
-
-struct gcode_block {
-	enum gcode_op_type op;
-
-	// No need to store all at once -
-	//union {
-		int int_data;
-		double dbl_data;
-		struct gcode_directive_data_t gdd_data;
-	//};
-	struct gcode_block * next;
-};
-
-#define MAX_APERTURES 1000
-
-struct gerber_file {
-	struct parse_info parse_settings;
-
-	struct rs274x_image_param image_params;
-
-	struct aperture * ap_list[MAX_APERTURES];
-
-	// Map to convert names to compiled macros
-	// Not needed after initial parse
-	std::map<std::string, Macro_VM *> ap_map;
 	
-	// Pointers to head and tail of the instruction list
-	struct gcode_block * first_gcode;
-	struct gcode_block * last_gcode;
+	struct aperture {
+		enum aperture_type type;
+		union {
+			// Standard Circle aperture
+			struct {
+				double OD;
+				double XAHD;
+				double YAHD;
+			} circle_p;
+			
+			// Standard Rect aperture
+			struct {
+				
+				double XAD;
+				double YAD;
+				double XAHD;
+				double YAHD;
+				
+			} rect_p;
+			
+			// Standard Oval aperture
+			struct {
+				double XAD;
+				double YAD;
+				double XAHD;
+				double YAHD;
+			} oval_p;
+			
+			// Standard Poly aperture
+			struct {
+				double OD;
+				double NS;
+				double DR;
+				double XAHD;
+				double YAHD;
+				
+			} poly_p;
+			
+			struct {
+				double * params;
+				int num_params;
+				char * macro_name;
+				Macro_VM * compiled_macro;
+			} macro_p;
+		};
+		
+	};
+	
+	
+	
+	enum coord_abs_inc {
+		COORD_ABS,
+		COORD_INC
+	};
+	
+	enum omit_lead_trail {
+		OMIT_LEADING,
+		OMIT_TRAILING
+	};
+	
+	struct parse_info {
+		bool parse_set;
+		
+		enum omit_lead_trail lt;
+		enum coord_abs_inc ai;
+		
+		int N_width;
+		int G_width;
+		int D_width;
+		int M_width;
+		
+		int X_lead;
+		int X_trail;
+		int Y_lead;
+		int Y_trail;
+		
+		// Now encoded as directives
+		//enum unit_mode um;
+	};
+	
+		
+	enum unit_mode {
+		UNITMODE_IN,
+		UNITMODE_MM
+	};
+	
+	enum layer_polar_t {
+		LP_C,
+		LP_D
+	};
+	
+	
+	enum gcode_directive_type_t {
+		DIR_AS,
+		DIR_FS,
+		DIR_MI,
+		DIR_MO,
+		DIR_OF,
+		DIR_SF,
+		LY_KO,
+		LY_LN,
+		LY_LP,
+		LY_SR
+	};
+	enum gcode_op_type {
+		GCO_G,
+		GCO_M,
+		GCO_D,
+		GCO_X,
+		GCO_Y,
+		GCO_I,
+		GCO_J,
+		GCO_DIR, // Special GCODE op for directive
+		GCO_END
+	};
+	struct gcode_directive_data_t {
+		enum gcode_directive_type_t dir;
+		union {
+			struct {
+				char A, B;
+			} AS_P;
+			
+			struct {
+				enum coord_abs_inc ai;
+			} FS_P;
+			
+			struct {
+			} KO_P;
+			
+			struct {
+				char * name;
+			} LN_P;
+			
+			struct {
+				enum layer_polar_t lp;
+			} LP_P;
+			
+			struct {
+				bool mir_A;
+				bool mir_B;
+			} MI_P;
+			
+			struct {
+				enum unit_mode um;
+			} MO_P;
+			
+			struct {
+				double A;
+				double B;
+			} OF_P;
+			
+			struct {
+				double A;
+				double B;
+			} SF_P;
+			
+		};
+	};
+	
+	struct gcode_block {
+		enum gcode_op_type op;
+		
+		// No need to store all at once -
+		union {
+			int int_data;
+			double dbl_data;
+			struct gcode_directive_data_t gdd_data;
+		};
+	};
+	
+	struct parse_info					m_parse_settings;
+	struct rs274x_image_param			m_image_params;
+	
+	
+	// Maps aperture IDs to aperture objects
+	typedef std::map<int, struct aperture *> aperture_map_t;
+	aperture_map_t		m_ap_map;
+	
+	// Sequential list of operations to be performed by the virtual machine
+	typedef std::list<struct gcode_block> operations_list_t;
+	operations_list_t		m_operations;
+	
+	
+	std::map<std::string, Macro_VM *>	m_macro_name_to_aperture;
+private:
 };
 
-struct gerber_file * create_gerber_file_rep_from_filename(char * filename);
-void free_gerber_file_rep(struct gerber_file * rep);
+typedef boost::shared_ptr<RS274X_Program> sp_RS274X_Program;
+
+sp_RS274X_Program parseRS274X(char * filename);
 

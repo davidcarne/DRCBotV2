@@ -1,9 +1,37 @@
+/*
+ *  Portions Copyright 2007 Spark Fun Electronics and 2009 David Carne
+ *
+ *  David Carne 2007/08/06, 2009/05/13
+ *
+ *  This file is part of gerberDRC.
+ *
+ *  gerberDRC is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Foobar is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+
 #include "gcode_interp.h"
 #include "macro_vm.h"
 #include "math.h"
+
+/* Render a n-gon primitive
+ * p: destination polygon
+ * x,y: head location at macro invocation
+ *
+ */
 bool Macro_VM::renderPrim5(GerbObj_Poly * p, float x, float y)
 {
-	//printf("Stack depth: %d\n", mem_stack.size());
 	if (mem_stack.size() < 6)
 	{
 		return false;
@@ -14,7 +42,7 @@ bool Macro_VM::renderPrim5(GerbObj_Poly * p, float x, float y)
 	float xc = mem_stack.top(); mem_stack.pop();
 	int verts = (int)mem_stack.top(); mem_stack.pop();
 	int exposure = (int)mem_stack.top(); mem_stack.pop();
-	//printf("Rendering poly: [%d %d %f,%f %f %f]\n",exposure,verts,xc,yc,diam,rot);
+
 	diam/=2;
 	rot /= 180.0;
 	rot *= M_PI;
@@ -27,10 +55,9 @@ bool Macro_VM::renderPrim5(GerbObj_Poly * p, float x, float y)
 	return true;
 }
 
-
+/* Render an outline primitive [aka, polygon defined by points] */
 bool Macro_VM::renderPrim4(GerbObj_Poly * p, float x, float y)
 {
-	//printf("Stack depth: %d\n", mem_stack.size());
 	if (mem_stack.size() < 2)
 	{
 		return false;
@@ -53,9 +80,9 @@ bool Macro_VM::renderPrim4(GerbObj_Poly * p, float x, float y)
 	return true;
 }
 
+// Render a line defined by width, height and center point
 bool Macro_VM::renderPrim21(GerbObj_Poly * p, float x, float y)
 {
-	//printf("Stack depth: %d\n", mem_stack.size());
 	if (mem_stack.size() < 6)
 	{
 		return false;
@@ -81,7 +108,10 @@ bool Macro_VM::renderPrim21(GerbObj_Poly * p, float x, float y)
 	// last two are exp + verts
 	return true;
 }
-//loosely based off gerbv's macro parser
+
+/*
+ * Execute the macro, and return the generated polygon
+ */
 GerbObj_Poly * Macro_VM::execute(double * params, float x, float y)
 {
 	GerbObj_Poly * p = new GerbObj_Poly();
@@ -138,6 +168,8 @@ GerbObj_Poly * Macro_VM::execute(double * params, float x, float y)
 				break;
 				
 			case OP_PRIM:
+				// No other primitives than the following have been seen in production
+				// Adding them shouldn't be a big deal if they show up
 				switch (m.ival){
 					case 5:
 						if (!renderPrim5(p,x,y))
@@ -171,6 +203,9 @@ GerbObj_Poly * Macro_VM::execute(double * params, float x, float y)
 	return p;
 }
 
+/*
+ * Print the contents of the program
+ */
 void Macro_VM::print()
 {
 		i_code_type_t i = code.begin();

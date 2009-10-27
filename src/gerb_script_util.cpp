@@ -4,8 +4,12 @@
 #include "gcode_interp.h"
 #include "main.h"
 #include <gd.h>
-extern "C" {
+
 debug_level_t debug_level;
+
+void setDebugLevel(debug_level_t new_level)
+{
+	debug_level = new_level;
 }
 
 GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)

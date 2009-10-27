@@ -3,6 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** One standard library used during the development of this
+ *  program had a bug in the following two functions
+ *  Created our own as a workaround
+ */
 int  strnlen(char * str, size_t n)
 {
 	size_t i = 0;

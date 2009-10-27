@@ -10,6 +10,7 @@
 
 #include "fileio.h"
 #include "main.h"
+#include <stdint.h>
 
 struct mapped_file map_file(char * filename)
 {
@@ -41,10 +42,13 @@ struct mapped_file map_file(char * filename)
 	off_t file_size = file_stat.st_size;
 	mfile.file_len = file_size;
 
+	// Cast to known type, off_t declared differently on different archs.
+	uint64_t print_file_size = file_size;
+	
 	if (debug_level >= DEBUG_VERBOSE)
 	{
 		printf("Input file name = %s\n", filename);
-		printf("Input file size = %u\n", file_size);
+		printf("Input file size = %llu\n", file_size);
 	}
 	
 	// Try to open the file

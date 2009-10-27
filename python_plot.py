@@ -11,9 +11,9 @@ parser = OptionParser()
 parser.add_option("-s", "--silkscreen", dest="silkscreen",
 	help="Silkscreen layer input", metavar="FILE")
 parser.add_option("-c", "--copper", dest="copper",
-	help="write report to FILE", metavar="FILE")
+	help="Copper layer input", metavar="FILE")
 parser.add_option("-m", "--soldermask", dest="soldermask",
-	help="write report to FILE", metavar="FILE")
+	help="Soldermask input", metavar="FILE")
 
 parser.add_option("-o", "--output", dest="output",
 	help="write output to FILE", metavar="FILE")

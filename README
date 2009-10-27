@@ -1,1 +1,4 @@
-Requirements: libGD, libPNG, zlib, libjpeg, libfreetype, swig
+Open source Geber DRC and visualization library. Intended to be used from python, but can be embedded into other programs / used as a library.
+Licensed under the GPLV2 or later.
+
+Requirements: libGD, libPNG, zlib, libjpeg, libfreetype

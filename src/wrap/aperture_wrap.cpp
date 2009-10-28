@@ -23,6 +23,8 @@ static boost::python::object aperatureValueHelper(RS274X_Program::aperture & blk
 		case RS274X_Program::AP_MACRO:
 			return object(blk.macro_p);
 	}
+	
+	return object();
 }
 
 
@@ -89,3 +91,4 @@ void aperture_wrap(void)
 	.def("__len__", &r274apm_t::size);
 
 }
+

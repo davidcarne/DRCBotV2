@@ -1,16 +1,15 @@
 /*
- *  Portions Copyright 2006,2009 David Carne and 2007 Spark Fun Electronics
+ *  Portions Copyright 2006,2009 David Carne and 2007,2008 Spark Fun Electronics
  *
- *  David Carne 2006, 2007/08/06, 2009/05/13
  *
  *  This file is part of gerberDRC.
  *
  *  gerberDRC is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 3 of the License, or
+ *  the Free Software Foundation; either version 2 of the License, or
  *  (at your option) any later version.
  *
- *  Foobar is distributed in the hope that it will be useful,
+ *  gerberDRC is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
@@ -20,6 +19,8 @@
  *
  */
 
+#ifndef _GERBER_PARSE_H_
+#define _GERBER_PARSE_H_
 
 #include <boost/shared_ptr.hpp>
 
@@ -304,3 +305,4 @@ typedef boost::shared_ptr<RS274X_Program> sp_RS274X_Program;
 
 sp_RS274X_Program parseRS274X(char * filename);
 
+#endif

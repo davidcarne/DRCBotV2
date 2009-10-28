@@ -6,7 +6,7 @@ SRCS=src/gerber_parse.cpp src/wrap/gerber_parse_wrap.cpp src/wrap/aperture_wrap.
 	
 OBJS=$(patsubst %.cpp,build/%.o, $(SRCS) )
 
-CPPFLAGS = `python-config --includes` -g -Isrc/
+CPPFLAGS = `python-config --includes` -g -Isrc/ -Wall -Werror -Wno-unused -Wnewline-eof
 LDFLAGS = -lboost_python `python-config --ldflags` -lgd 
 
 _gerber_utils.so: $(OBJS)

@@ -26,6 +26,8 @@ boost::python::object gcodeBlockValueHelper(RS274X_Program::gcode_block blk)
 		case RS274X_Program::GCO_END:
 			return object();
 	}
+	
+	return object();
 }
 
 typedef const RS274X_Program::operations_list_t r274opl_t;
@@ -117,3 +119,4 @@ BOOST_PYTHON_MODULE(_gerber_utils)
     def("parseFile", parseRS274X);
 	def("setDebugLevel",setDebugLevel);
 }
+

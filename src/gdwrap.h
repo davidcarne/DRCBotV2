@@ -1,3 +1,5 @@
+// Created based on gd header. GD copyright applies.
+
 #ifdef __cplusplus
 extern "C" {
 #endif

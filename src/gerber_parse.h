@@ -111,48 +111,55 @@ public:
 	
 	struct aperture {
 		enum aperture_type type;
+		
+		// Standard Circle aperture
+		typedef struct {
+			double OD;
+			double XAHD;
+			double YAHD;
+		} circle_ap_t;
+		
+		// Standard Rect aperture
+		typedef struct {
+			
+			double XAD;
+			double YAD;
+			double XAHD;
+			double YAHD;
+			
+		} rect_ap_t;
+		
+		// Standard Oval aperture
+		typedef struct {
+			double XAD;
+			double YAD;
+			double XAHD;
+			double YAHD;
+		} oval_ap_t;
+		
+		// Standard Poly aperture
+		typedef struct {
+			double OD;
+			double NS;
+			double DR;
+			double XAHD;
+			double YAHD;
+			
+		} poly_ap_t;
+		
+		typedef struct {
+			double * params;
+			int num_params;
+			char * macro_name;
+			Macro_VM * compiled_macro;
+		} macro_ap_t;
+		
 		union {
-			// Standard Circle aperture
-			struct {
-				double OD;
-				double XAHD;
-				double YAHD;
-			} circle_p;
-			
-			// Standard Rect aperture
-			struct {
-				
-				double XAD;
-				double YAD;
-				double XAHD;
-				double YAHD;
-				
-			} rect_p;
-			
-			// Standard Oval aperture
-			struct {
-				double XAD;
-				double YAD;
-				double XAHD;
-				double YAHD;
-			} oval_p;
-			
-			// Standard Poly aperture
-			struct {
-				double OD;
-				double NS;
-				double DR;
-				double XAHD;
-				double YAHD;
-				
-			} poly_p;
-			
-			struct {
-				double * params;
-				int num_params;
-				char * macro_name;
-				Macro_VM * compiled_macro;
-			} macro_p;
+			circle_ap_t circle_p;
+			rect_ap_t rect_p;
+			oval_ap_t oval_p;
+			poly_ap_t poly_p;
+			macro_ap_t macro_p;
 		};
 		
 	};
@@ -184,9 +191,6 @@ public:
 		int X_trail;
 		int Y_lead;
 		int Y_trail;
-		
-		// Now encoded as directives
-		//enum unit_mode um;
 	};
 	
 		

@@ -1,8 +1,9 @@
 
 #include <boost/python.hpp>
-#include "gerber_parse.h"
+#include "wrap_fns.h"
 #include "main.h"
 #include "gerb_script_util.h"
+#include "gerber_parse.h"
 
 boost::python::object gcodeBlockValueHelper(RS274X_Program::gcode_block blk)
 {
@@ -35,7 +36,45 @@ BOOST_PYTHON_MODULE(_gerber_utils)
 {
 	using namespace boost::python;
 
-	//def("vc", gcodeBlockValueHelper);
+	aperture_wrap();
+	
+	enum_<RS274X_Program::image_param_polarity>("image_param_polarity")
+	.value("IP_POS", RS274X_Program::IP_NEG)
+	.value("IP_NEG", RS274X_Program::IP_NEG)
+	;
+	
+	enum_<RS274X_Program::image_param_justify>("image_param_justify")
+	.value("IJ_LEFT", RS274X_Program::IJ_LEFT)
+	.value("IJ_CENTER", RS274X_Program::IJ_CENTER)
+	;
+	
+	enum_<RS274X_Program::image_param_rotate>("image_param_rotate")
+	.value("IR_0", RS274X_Program::IR_0)
+	.value("IR_90", RS274X_Program::IR_90)
+	.value("IR_180", RS274X_Program::IR_180)
+	.value("IR_270", RS274X_Program::IR_270)
+	;
+	
+	class_<RS274X_Program::rs274x_image_param>("rs274x_image_param", init<>())
+	.def_readonly("IJ_set", &RS274X_Program::rs274x_image_param::IJ_set)
+	.def_readonly("IJ_justify_A", &RS274X_Program::rs274x_image_param::IJ_justify_A)
+	.def_readonly("IJ_justify_B", &RS274X_Program::rs274x_image_param::IJ_justify_B)
+	.def_readonly("IJ_offset_A", &RS274X_Program::rs274x_image_param::IJ_offset_A)
+	.def_readonly("IJ_offset_B", &RS274X_Program::rs274x_image_param::IJ_offset_B)
+	.def_readonly("IN_set", &RS274X_Program::rs274x_image_param::IN_set)
+	.def_readonly("IN_value", &RS274X_Program::rs274x_image_param::IN_value)
+	.def_readonly("IO_set", &RS274X_Program::rs274x_image_param::IO_set)
+	.def_readonly("IO_offset_A", &RS274X_Program::rs274x_image_param::IO_offset_A)
+	.def_readonly("IO_offset_B", &RS274X_Program::rs274x_image_param::IO_offset_B)
+	.def_readonly("IP_set", &RS274X_Program::rs274x_image_param::IP_set)
+	.def_readonly("IP_polarity", &RS274X_Program::rs274x_image_param::IP_polarity)
+	.def_readonly("IR_set", &RS274X_Program::rs274x_image_param::IR_set)
+	.def_readonly("IR_rotate", &RS274X_Program::rs274x_image_param::IR_rotate)
+	.def_readonly("PF_set", &RS274X_Program::rs274x_image_param::PF_set)
+	.def_readonly("PF_value", &RS274X_Program::rs274x_image_param::PF_value)
+	;
+	
+	
 	
 	enum_<debug_level_t>("debug_level_t")
     .value("DEBUG_NONE", DEBUG_NONE)
@@ -69,8 +108,6 @@ BOOST_PYTHON_MODULE(_gerber_utils)
 							   static_cast<rrci>(&r274opl_t::rend)))
 	.def("__len__", &r274opl_t::size);
 	
-	
-	class_<RS274X_Program::aperture_map_t>("aperture_map_t", init<>());
 	
 	class_<RS274X_Program, boost::shared_ptr<RS274X_Program> >("RS274X_Program",init<>())
 		.def_readonly("operations", &RS274X_Program::m_operations)

@@ -1,3 +1,24 @@
+/*
+ *  Portions Copyright 2006,2009 David Carne and 2007,2008 Spark Fun Electronics
+ *
+ *
+ *  This file is part of gerberDRC.
+ *
+ *  gerberDRC is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  gerberDRC is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 
 #include <boost/python.hpp>
 #include "wrap_fns.h"
@@ -5,7 +26,7 @@
 #include "gerb_script_util.h"
 #include "gerber_parse.h"
 
-boost::python::object gcodeBlockValueHelper(RS274X_Program::gcode_block blk)
+static boost::python::object gcodeBlockValueHelper(RS274X_Program::gcode_block blk)
 {
 	using namespace boost::python;
 
@@ -34,11 +55,10 @@ typedef const RS274X_Program::operations_list_t r274opl_t;
 typedef r274opl_t::const_iterator (r274opl_t::*rci)(void) const;
 typedef r274opl_t::const_reverse_iterator (r274opl_t::*rrci)(void) const;
 
-BOOST_PYTHON_MODULE(_gerber_utils)
+void gerberParserWrap()
 {
 	using namespace boost::python;
 
-	aperture_wrap();
 	
 	enum_<RS274X_Program::image_param_polarity>("image_param_polarity")
 	.value("IP_POS", RS274X_Program::IP_NEG)

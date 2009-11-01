@@ -19,29 +19,69 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
+#ifndef _GERBOBJ_H_
+#define _GERBOBJ_H_
 
-debug_level_t debug_level;
+#include "render.h"
 
-void setDebugLevel(debug_level_t new_level)
+class RenderPoly;
+class Vector_Outp;
+class net_group;
+
+
+#include "util_type.h"
+#include <boost/shared_ptr.hpp>
+
+
+enum line_trace_type_t
 {
-	debug_level = new_level;
-}
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
+	LT_STRAIGHT,
+	LT_ARC	
+};
+
+class GerbObj {
+public:
+	
+	RenderPoly* getPolyData()
+	{
+		if (!cached)
+			cached = createPolyData();
+		return cached;
+	}
+	
+	friend void add_to_group(Vector_Outp * f, net_group * n, GerbObj * o);
+	
+	net_group* getOwner() {return owner;};
+	
+
+	
+	
+	enum flagerr_t flag;
+	
+	virtual Rect getBounds()=0;
+	~GerbObj()
+	{
+	}
+	
+protected:
+	virtual RenderPoly * createPolyData() = 0;
+	net_group * owner;
+	
+	
+	GerbObj()
+	{
+		cached = NULL;
+		owner = NULL;
+		flag = FLG_NONE;
+	}
+	
+	
+	
+private:
+	RenderPoly * cached;
+};
 
 
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
-
+typedef boost::shared_ptr<GerbObj> sp_GerbObj;
+#endif
 

@@ -19,29 +19,16 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
 
-debug_level_t debug_level;
-
-void setDebugLevel(debug_level_t new_level)
-{
-	debug_level = new_level;
-}
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
+#ifndef _TYPES_H_
+#define _TYPES_H_
 
 
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
+enum unit_mode {
+	UNITMODE_IN,
+	UNITMODE_MM
+};
 
+
+#endif
 

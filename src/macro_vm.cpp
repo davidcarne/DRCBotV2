@@ -23,6 +23,8 @@
 #include "macro_vm.h"
 #include "math.h"
 
+#include "gerbobj_poly.h"
+
 /* Render a n-gon primitive
  * p: destination polygon
  * x,y: head location at macro invocation

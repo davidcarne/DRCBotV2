@@ -126,26 +126,6 @@ void _cgdImageCopy (gdImagePtr dst, gdImagePtr src, int dstX, int dstY, int srcX
 	}
 }
 
-
-
-double angle_from_dxdy(double dx, double dy)
-{
-	double angle;
-	
-	if (dx == 0)
-	{
-		angle = dy > 0 ? M_PI / 2.0 : 3.0 * M_PI / 2.0;
-	} else {
-		angle = atan(dy/dx);
-
-		if (dx < 0)
-			angle += M_PI;
-	}
-
-	return angle;
-}
-
-
 void drawTransformedLine(gdImagePtr im, double x1, double y1, double x2, double y2, int color, const plotOptions & p)
 {
 		gdImageLine(im,  (int)((x1+p.offX) * p.scale), 
@@ -177,8 +157,8 @@ void plot_arc(gdImagePtr im, double xs, double ys, double xe, double ye, double 
         double dxe = xe-xc;
         double dye = ye-yc;
 
-        double s_angle = angle_from_dxdy(dxs, dys);
-        double e_angle = angle_from_dxdy(dxe, dye);
+        double s_angle = atan2(dys, dxs);
+        double e_angle = atan2(dye, dxe);
 
         double r = sqrt(dxs*dxs+dys*dys);
 
@@ -251,7 +231,7 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 	int badwidth = orange;
 	int badspace = gdImageColorAllocate(im, 255, 0, 128);
 	
-	std::set<GerbObj*>::iterator it = vf->all.begin();
+	std::list<sp_GerbObj>::iterator it = vf->all.begin();
 	int lcoldef=green;
 
 	if (ps.colorByOVR)
@@ -262,7 +242,7 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 		
 	for (; it != vf->all.end(); it++)
 	{
-		GerbObj * p = (*it);
+		sp_GerbObj p = (*it);
 	
 			
 		RenderPoly * rp = p->getPolyData();
@@ -311,7 +291,7 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 		
 		for (;v_it != rp->segs.end(); v_it++)
 		{
-			if (last_seg->lt == LT_STRAIGHT)
+			if (last_seg->lt == point_line::LR_STRAIGHT)
 				drawTransformedLine(im, last_seg->x, last_seg->y, (*v_it)->x, (*v_it)->y, lcoldef, ps);
 			else
 				plot_arc(im, last_seg->x,last_seg->y, (*v_it)->x, (*v_it)->y, last_seg->cx, last_seg->cy, lcoldef, ps);
@@ -327,7 +307,7 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 			
 			gdImageSetThickness(im, 1);
 */
-		if (last_seg->lt == LT_STRAIGHT)
+		if (last_seg->lt == point_line::LR_STRAIGHT)
 			drawTransformedLine(im, last_seg->x, last_seg->y, first_seg->x, first_seg->y, lcoldef, ps);
 		else
 			plot_arc(im, last_seg->x,last_seg->y, first_seg->x, first_seg->y, last_seg->cx, last_seg->cy, lcoldef, ps);
@@ -350,7 +330,7 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 		
 	}
 	
-	std::set<GErr*>::iterator eit = vf->errors.begin();
+	/*std::set<GErr*>::iterator eit = vf->errors.begin();
 	for (; eit != vf->errors.end(); eit++)
 	{
 		GErr * e = *eit;
@@ -369,7 +349,8 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 		} else {
 			drawTransformedLine(im, e->x, e->y, e->nx, e->ny, linecol, ps);
 		}
-	}
+	}*/
+	
 	if (ps.drawinverted)
 	{
 		gdImageAlphaBlending(im_old, 1);

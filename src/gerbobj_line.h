@@ -19,29 +19,48 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
 
-debug_level_t debug_level;
+#ifndef _GERBOBJ_LINE_H_
+#define _GERBOBJ_LINE_H_
 
-void setDebugLevel(debug_level_t new_level)
-{
-	debug_level = new_level;
-}
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
+#include "gerbobj.h"
 
+class GerbObj_Line : public GerbObj {
+public:
+	
+	GerbObj_Line() : GerbObj() {};
+	
+	// Start coordinate, [optional center point for arc]
+	double sx,sy,ex,ey,cx,cy;
+	
+	double width;
+	
+	Rect getBounds()
+	{
+		Rect r = Rect(sx,sy,ex,ey);
+		// TODO: Feather needs to take into account trace spacing if it is to handle drc right
+		r.feather(width);
+		return r;
+	}
+	
 
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
+	
+	// This enumeration seems unused. Not sure if functionality will be needed later, so keep.
+	enum line_cap_type_t 
+	{
+		//LC_NONE,
+		LC_ROUND,
+		//LC_RECT,
+	};
+	
+	
+	// and how todraw the line
+	enum line_trace_type_t lt;
+	enum line_cap_type_t lc;
+	
+protected:
+	RenderPoly * createPolyData();
+};
 
+#endif
 

@@ -20,11 +20,12 @@
  */
 
 #include "gcode_interp.h"
+#include "gerbobj_poly.h"
 
 #include <math.h>
 #include <assert.h>
 #include "gcode_interp.h"
-
+#include "render.h"
 
 static struct point_line * alloc_point_line()
 {
@@ -72,7 +73,7 @@ RenderPoly * GerbObj_Poly::createPolyData()
 	for (;it != points.end();it++)
 	{
 		pt = aPL();
-		pt->lt = LT_STRAIGHT;
+		pt->lt = point_line::LR_STRAIGHT;
 		pt->x = (*it).x;
 		pt->y = (*it).y;
 		rp->segs.push_back(pt);
@@ -80,6 +81,7 @@ RenderPoly * GerbObj_Poly::createPolyData()
 	
 	rp->flag = flag;
 	
+	/*
 	if (getOwner())
 	{
 		rp->oid = getOwner()->getID();
@@ -88,7 +90,7 @@ RenderPoly * GerbObj_Poly::createPolyData()
 		rp->b = getOwner()->b;
 	} else {
 		rp->flag = FLG_NO_OWNER;
-	}
+	}*/
 	
 	return rp;
 }

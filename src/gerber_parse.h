@@ -28,6 +28,7 @@
 #include <string>
 #include <vector>
 #include "macro_vm.h"
+#include "types.h"
 
 /* 
  * RS274X description
@@ -181,7 +182,6 @@ public:
 		bool parse_set;
 		
 		enum omit_lead_trail lt;
-		enum coord_abs_inc ai;
 		
 		int N_width;
 		int G_width;
@@ -194,11 +194,7 @@ public:
 		int Y_trail;
 	};
 	
-		
-	enum unit_mode {
-		UNITMODE_IN,
-		UNITMODE_MM
-	};
+
 	
 	enum layer_polar_t {
 		LP_C,
@@ -207,12 +203,12 @@ public:
 	
 	
 	enum gcode_directive_type_t {
-		DIR_AS,
-		DIR_FS,
-		DIR_MI,
-		DIR_MO,
-		DIR_OF,
-		DIR_SF,
+		DIR_AS, // Axis Select
+		DIR_FS,	// Format Select - Emitted
+		DIR_MI, // Mirror Image
+		DIR_MO,	// Mode of Units - Emitted
+		DIR_OF, // Offset
+		DIR_SF, // Scale Factor
 		LY_KO,
 		LY_LN,
 		LY_LP,
@@ -291,6 +287,15 @@ public:
 	// Maps aperture IDs to aperture objects
 	typedef std::map<int, struct aperture *> aperture_map_t;
 	aperture_map_t		m_ap_map;
+	
+	
+	const struct aperture * getAperture(int index) const
+	{
+		aperture_map_t::const_iterator ci = m_ap_map.find(index);
+		if (ci == m_ap_map.end())
+			return NULL;
+		return (*ci).second;
+	}
 	
 	// Sequential list of operations to be performed by the virtual machine
 	typedef std::list<struct gcode_block> operations_list_t;

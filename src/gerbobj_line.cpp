@@ -22,7 +22,8 @@
 #include <math.h>
 
 #include "gcode_interp.h"
-
+#include "render.h"
+#include "gerbobj_line.h"
 
 struct point_line * alloc_point_line()
 {
@@ -63,7 +64,7 @@ RenderPoly * createRoundCapPoly(GerbObj_Line * r)
 
 	// Below_start
 	pt = aPL();
-	pt->lt = LT_STRAIGHT;
+	pt->lt = point_line::LR_STRAIGHT;
 	pt->x = r->ex + pdx;
 	pt->y = r->ey + pdy;
 	obj->segs.push_back(pt);
@@ -71,7 +72,7 @@ RenderPoly * createRoundCapPoly(GerbObj_Line * r)
 	
 	// Below_end
 	pt = aPL();
-	pt->lt = LT_ARC;
+	pt->lt = point_line::LR_ARC;
 	pt->x = r->sx + pdx;
 	pt->y = r->sy + pdy;
 	pt->cx = r->sx;
@@ -80,14 +81,14 @@ RenderPoly * createRoundCapPoly(GerbObj_Line * r)
 
 	// Above_end
 	pt = aPL();
-	pt->lt = LT_STRAIGHT;
+	pt->lt = point_line::LR_STRAIGHT;
 	pt->x = r->sx - pdx;
 	pt->y = r->sy - pdy;
 	obj->segs.push_back(pt);	
 
 	// Above_start
 	pt = aPL();
-	pt->lt = LT_ARC;
+	pt->lt = point_line::LR_ARC;
 	pt->x = r->ex - pdx;
 	pt->y = r->ey - pdy;
 	pt->cx = r->ex;
@@ -95,7 +96,7 @@ RenderPoly * createRoundCapPoly(GerbObj_Line * r)
 	obj->segs.push_back(pt);
 	
 	obj->flag = r->flag;
-	
+	/*
 	if (r->getOwner())
 	{
 		obj->oid = r->getOwner()->getID();
@@ -104,7 +105,8 @@ RenderPoly * createRoundCapPoly(GerbObj_Line * r)
 		obj->b = r->getOwner()->b;
 	} else {
 		obj->flag = FLG_NO_OWNER;
-	}
+	}*/
+	
 	return obj;
 }
 RenderPoly * GerbObj_Line::createPolyData()

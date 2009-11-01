@@ -19,29 +19,15 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
+#include <boost/python.hpp>
+#include "wrap_fns.h"
 #include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
 
-debug_level_t debug_level;
-
-void setDebugLevel(debug_level_t new_level)
+void gcodeInterpWrap(void)
 {
-	debug_level = new_level;
+	using namespace boost::python;
+	
+	def("runRS274XProgram", gcode_run);
+	class_<Vector_Outp, boost::shared_ptr<Vector_Outp> >("PolygonLayer", init<>());
 }
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
-
-
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
-
 

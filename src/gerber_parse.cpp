@@ -85,7 +85,6 @@ void initialize_parse_info(struct RS274X_Program::parse_info *pi)
 {
 	pi->parse_set = false;
 	pi->lt = RS274X_Program::OMIT_LEADING;
-	pi->ai = RS274X_Program::COORD_ABS;
 	pi->N_width = 2;
 	pi->G_width = 2;
 	pi->D_width = 3;
@@ -241,7 +240,7 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 	// ensure its defining a proper DCODE value
 	if (block[2] != 'D')
 	{
-		DBG_VERBOSE_PF("Inval aperture define value\n");
+		DBG_VERBOSE_PF("Inval aperture define value");
 		// HACK: This is completely invalid, yet some gerber software spits out
 		// things like %AD*% - and we have to parse it. Argh.
 		return true;
@@ -253,14 +252,14 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 
 	if (block + 3 == parseptr)
 	{
-		DBG_ERR_PF("0 length DCODE ID\n");
+		DBG_ERR_PF("0 length DCODE ID");
 		
 		return false;
 	}
 
 	if ((ap_num < 10) || (ap_num >= MAX_APERTURES))
 	{
-		DBG_ERR_PF("Invalid DCODE ID %ld\n", ap_num);
+		DBG_ERR_PF("Invalid DCODE ID %ld", ap_num);
 		return false;
 	}
 
@@ -279,7 +278,7 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 	{
 		
 		DBG_ERR_PF( "Error - attempted to redefine an aperture.\n"
-				" [This is technically allowed, but not parsed]\n");
+				" [This is technically allowed, but not parsed]");
 		return false;
 	}
 	// Check if its one of the standard primitive types - Typestring Length 1 & typestring ~= [CROPT]
@@ -305,85 +304,90 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 		// Oval args [4] - OX, OY, [IX, IY]
 		// Poly args [5] - OD, NS, [DR, IX, IY]
 
-		DBG_MSG_PF("aperture define %ld %c [%s]\n", ap_num,ap_type, block);
+		DBG_MSG_PF("aperture define %ld %c [%s]", ap_num,ap_type, block);
 	
 		// now allocate a new aperture
-		struct RS274X_Program::aperture ap;
+		ap = new RS274X_Program::aperture();
 
 		
 		switch (ap_type)
 		{
 			case 'C':
 				if (param_count < 1)
-				{	DBG_ERR_PF("Not enough args for circle aperture\n");
+				{	DBG_ERR_PF("Not enough args for circle aperture");
+					delete ap;
 					return false;
 				}
-				ap.type = RS274X_Program::AP_CIRCLE;
-				ap.circle_p.OD = atof(arg_list[0]);
+				ap->type = RS274X_Program::AP_CIRCLE;
+				ap->circle_p.OD = atof(arg_list[0]);
 
 				if (param_count > 1)
-					ap.circle_p.XAHD = atof(arg_list[1]);
+					ap->circle_p.XAHD = atof(arg_list[1]);
 				
 				if (param_count > 2)
-					ap.circle_p.YAHD = atof(arg_list[2]);
+					ap->circle_p.YAHD = atof(arg_list[2]);
 
 				break;
 			case 'R':
 				if (param_count < 2)
 				{
-					DBG_ERR_PF("Not enough args for rect aperture\n");
+					DBG_ERR_PF("Not enough args for rect aperture");
+					delete ap;
 					return false;
 				}
-				ap.type = RS274X_Program::AP_RECT;
-				ap.rect_p.XAD = atof(arg_list[0]);
-				ap.rect_p.YAD = atof(arg_list[1]);				
+				ap->type = RS274X_Program::AP_RECT;
+				ap->rect_p.XAD = atof(arg_list[0]);
+				ap->rect_p.YAD = atof(arg_list[1]);				
 				if (param_count > 2)
-					ap.rect_p.XAHD = atof(arg_list[1]);
+					ap->rect_p.XAHD = atof(arg_list[1]);
 				
 				if (param_count > 3)
-					ap.rect_p.YAHD = atof(arg_list[2]);
+					ap->rect_p.YAHD = atof(arg_list[2]);
 				
 				break;
 
 			case 'O':
 				if (param_count < 2)
 				{
-					DBG_ERR_PF("Not enough args for oval aperture\n");
+					DBG_ERR_PF("Not enough args for oval aperture");
+					delete ap;
 					return false;
 				}
-				ap.type = RS274X_Program::AP_OVAL;
-				ap.oval_p.XAD = atof(arg_list[0]);
-				ap.oval_p.YAD = atof(arg_list[1]);				
+				ap->type = RS274X_Program::AP_OVAL;
+				ap->oval_p.XAD = atof(arg_list[0]);
+				ap->oval_p.YAD = atof(arg_list[1]);				
 				if (param_count > 2)
-					ap.oval_p.XAHD = atof(arg_list[1]);
+					ap->oval_p.XAHD = atof(arg_list[1]);
 				
 				if (param_count > 3)
-					ap.oval_p.YAHD = atof(arg_list[2]);
+					ap->oval_p.YAHD = atof(arg_list[2]);
 				break;
 				
 			case 'P':
 				if (param_count < 2)
 				{
-					DBG_ERR_PF("Not enough args for poly aperture\n");
+					DBG_ERR_PF("Not enough args for poly aperture");
+					delete ap;
 					return false;
 				}
-				ap.type = RS274X_Program::AP_POLY;
+				ap->type = RS274X_Program::AP_POLY;
 
-				ap.poly_p.OD = atof(arg_list[0]);
-				ap.poly_p.NS = atoi(arg_list[1]);
+				ap->poly_p.OD = atof(arg_list[0]);
+				ap->poly_p.NS = atoi(arg_list[1]);
 
 				if (param_count > 2)
-					ap.poly_p.DR = atoi(arg_list[2]);
+					ap->poly_p.DR = atoi(arg_list[2]);
 				
 				if (param_count > 3)
-					ap.poly_p.XAHD = atoi(arg_list[3]);
+					ap->poly_p.XAHD = atoi(arg_list[3]);
 				
 				if (param_count > 4)
-					ap.poly_p.YAHD = atoi(arg_list[4]);
+					ap->poly_p.YAHD = atoi(arg_list[4]);
 				break;
 				
 			case 'T':
-				DBG_ERR_PF("Error - ap type T not yet supported\n");
+				DBG_ERR_PF("Error - ap type T not yet supported");
+				delete ap;
 				return false;	
 		}
 		if (arg_list)
@@ -391,12 +395,12 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 	} else {
 		// Check if it exists in the macro list
 		// However - right now we can't parse macros
-		DBG_MSG_PF("aperture define %ld MACRO [%s]\n", ap_num, block);
+		DBG_MSG_PF("aperture define %ld MACRO [%s]", ap_num, block);
 		
-		struct RS274X_Program::aperture ap;
-		ap.type = RS274X_Program::AP_MACRO;
-		ap.macro_p.macro_name = strndup(parseptr, typestr_len-1);
-		ap.macro_p.compiled_macro = target->m_macro_name_to_aperture[ap.macro_p.macro_name];
+		ap = new RS274X_Program::aperture();
+		ap->type = RS274X_Program::AP_MACRO;
+		ap->macro_p.macro_name = strndup(parseptr, typestr_len-1);
+		ap->macro_p.compiled_macro = target->m_macro_name_to_aperture[ap->macro_p.macro_name];
 		
 		parseptr += typestr_len;
 		
@@ -416,7 +420,7 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 			int i=0;
 			while (*afollow != NULL)
 			{
-				DBG_MSG_PF("Arg: %s\n", *afollow);
+				DBG_MSG_PF("Arg: %s", *afollow);
 				args[i++] = atof(*afollow);
 				afollow ++;
 			}
@@ -424,13 +428,14 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 			if (arg_list)
 				free_delim_list(arg_list);
 			
-			ap.macro_p.params = args;
+			ap->macro_p.params = args;
 		} else {
-			ap.macro_p.params = NULL;
+			ap->macro_p.params = NULL;
 		}
-		DBG_VERBOSE_PF("Looking up macro %s [%p]\n",ap.macro_p.macro_name, ap.macro_p.compiled_macro);
+		DBG_VERBOSE_PF("Looking up macro %s [%p]",ap->macro_p.macro_name, ap->macro_p.compiled_macro);
 	}
 	
+	DBG_VERBOSE_PF("Assigning macro %ld == %p", ap_num, ap);
 	target->m_ap_map[ap_num] = ap;
 
 	return true;	
@@ -450,6 +455,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 	// skip the block ID
 	block += 2;
 	switch (*block) {
+		// This is handled at parse-time.
 		case 'L':
 			target->m_parse_settings.lt = RS274X_Program::OMIT_LEADING;
 			break;
@@ -457,7 +463,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 			target->m_parse_settings.lt = RS274X_Program::OMIT_TRAILING;
 			break;
 		default:
-			DBG_ERR_PF("Unrecognized Lead / Trail selector %c in FS\n", *block);
+			DBG_ERR_PF("Unrecognized Lead / Trail selector %c in FS", *block);
 			return false;
 			
 
@@ -465,14 +471,27 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 	block++;
 
 	switch (*block) {
+	// TODO: emit a directive entry for this.
 		case 'A':
-			target->m_parse_settings.ai = RS274X_Program::COORD_ABS;
+		{
+			struct RS274X_Program::gcode_block eob;
+			eob.op = RS274X_Program::GCO_DIR;
+			eob.gdd_data.dir = RS274X_Program::DIR_FS;
+			eob.gdd_data.FS_P.ai = RS274X_Program::COORD_ABS;
+			append_gcode_block(target, eob);
 			break;
+		}
 		case 'I':
-			target->m_parse_settings.ai = RS274X_Program::COORD_INC;
+		{
+			struct RS274X_Program::gcode_block eob;
+			eob.op = RS274X_Program::GCO_DIR;
+			eob.gdd_data.dir = RS274X_Program::DIR_FS;
+			eob.gdd_data.FS_P.ai = RS274X_Program::COORD_INC;
+			append_gcode_block(target, eob);
 			break;
+		}
 		default:
-			DBG_ERR_PF("Unrecognized ABS/INC selector %c in FS\n", *block);
+			DBG_ERR_PF("Unrecognized ABS/INC selector %c in FS", *block);
 
 	}
 	block++;
@@ -485,7 +504,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 		target->m_parse_settings.N_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			DBG_ERR_PF("Could not parse Nwidth in FS\n");
+			DBG_ERR_PF("Could not parse Nwidth in FS");
 			return false;
 		}
 
@@ -500,7 +519,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 		target->m_parse_settings.G_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			DBG_ERR_PF("Could not parse Gwidth in FS\n");
+			DBG_ERR_PF("Could not parse Gwidth in FS");
 			return false;
 		}
 
@@ -514,7 +533,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			DBG_ERR_PF("Error - invalid X lead specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid X lead specifier [%c] in FS",*block);
 					
 			return false;
 		}
@@ -525,7 +544,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			DBG_ERR_PF("Error - invalid X trail specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid X trail specifier [%c] in FS",*block);
 					
 			return false;
 		}
@@ -542,7 +561,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			DBG_ERR_PF("Error - invalid Y lead specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid Y lead specifier [%c] in FS",*block);
 					
 			return false;
 		}
@@ -553,7 +572,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 
 		if ((*block > '6') || (*block < '0'))
 		{
-			DBG_ERR_PF("Error - invalid Y trail specifier [%c] in FS\n",*block);
+			DBG_ERR_PF("Error - invalid Y trail specifier [%c] in FS",*block);
 					
 			return false;
 		}
@@ -572,7 +591,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 		target->m_parse_settings.D_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			DBG_ERR_PF("Could not parse Dwidth in FS\n");
+			DBG_ERR_PF("Could not parse Dwidth in FS");
 			return false;
 		}
 
@@ -587,7 +606,7 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 		target->m_parse_settings.M_width = strtol(block, &numend, 10);
 		if (numend == block)
 		{
-			DBG_ERR_PF("Could not parse Mwidth in FS\n");
+			DBG_ERR_PF("Could not parse Mwidth in FS");
 			return false;
 		}
 
@@ -605,18 +624,19 @@ bool handle_274X_MO(char * block, RS274X_Program * target)
 {
 	assert((block[0] == 'M') && (block[1] == 'O'));
 	block += 2;
-	enum RS274X_Program::unit_mode um;
+
+	enum unit_mode um;
 
 	if ((block[0] == 'M') && (block[1] == 'M'))
 	{
 		
-		um = RS274X_Program::UNITMODE_MM;
+		um = UNITMODE_MM;
 	} else if ((block[0] == 'I') && (block[1] == 'N'))
 	{
-		um = RS274X_Program::UNITMODE_IN;
+		um = UNITMODE_IN;
 	} else {
 
-		DBG_ERR_PF("Error - invalid Mode line\n");
+		DBG_ERR_PF("Error - invalid Mode line");
 
 		return false;
 	}
@@ -631,7 +651,7 @@ bool handle_274X_MO(char * block, RS274X_Program * target)
 }
 
 /*
- * Aperture M
+ * Aperture Macro
  *
  *
  *
@@ -642,19 +662,19 @@ bool handle_274X_AM(char ** cur_block_ptr, RS274X_Program * target, int * consum
 	char * macroName = strdup(*cur_block_ptr + 2);
 	Macro_VM * vm = new Macro_VM();
 	
-	DBG_VERBOSE_PF("Macro Name = %s\n",macroName);
+	DBG_VERBOSE_PF("Macro Name = %s",macroName);
 	*cur_block_ptr ++;
 	(*consumed)++;
 	
 	while (*cur_block_ptr != NULL)
 	{
 			(*consumed)++;
-			DBG_VERBOSE_PF("Macro Consuming %s\n", *cur_block_ptr);
+			DBG_VERBOSE_PF("Macro Consuming %s", *cur_block_ptr);
 			if (parse_macro(vm,*cur_block_ptr))
-				DBG_VERBOSE_PF("Parse_OK\n")
+				DBG_VERBOSE_PF("Parse_OK")
 			else
 			{
-				DBG_ERR_PF("Macro parse failed.\n");
+				DBG_ERR_PF("Macro parse failed.");
 				delete vm;
 				free(macroName);
 				return false;
@@ -667,7 +687,58 @@ bool handle_274X_AM(char ** cur_block_ptr, RS274X_Program * target, int * consum
 	free(macroName);
 
 	return true;
+	
 }
+
+
+
+/* LP - Layer Polarity */
+bool handle_274X_LP(char * block, RS274X_Program * target)
+{
+	assert(block[0] == 'L' && block[1] == 'P');
+	
+	if (strlen(block) != 3 || !(block[2] == 'C' || block[2] == 'D'))
+	{
+		DBG_ERR_PF("LP parameter should be of the form LP[C|D]. Got %s", block);
+		return false;
+	}
+	
+	struct RS274X_Program::gcode_block eob;
+	eob.op = RS274X_Program::GCO_DIR;
+	eob.gdd_data.dir = RS274X_Program::LY_LP;
+	
+	switch (block[2])
+	{
+		case 'C':
+			eob.gdd_data.LP_P.lp = RS274X_Program::LP_C;
+			break;
+			
+		case 'D':	
+			eob.gdd_data.LP_P.lp = RS274X_Program::LP_D;
+			break;
+	}
+	
+	append_gcode_block(target, eob);	
+	
+	return true;
+}
+
+/* LN - Layer Name */
+bool handle_274X_LN(char * block, RS274X_Program * target)
+{
+	assert(block[0] == 'L' && block[1] == 'N');
+	
+	struct RS274X_Program::gcode_block eob;
+	eob.op = RS274X_Program::GCO_DIR;
+	eob.gdd_data.dir = RS274X_Program::LY_LN;
+	eob.gdd_data.LN_P.name = block + 2;
+	append_gcode_block(target, eob);	
+	
+	return true;
+}
+
+
+
 /* General format for a param block
  *
    %PARAM1*
@@ -747,22 +818,40 @@ bool parse_274X_param_do_block(char ** cur_block_ptr, RS274X_Program * target, i
 			break;
 			
 		case INTPM('L','P'):
-			if ((*cur_block_ptr)[2]!='D')
-			{
-				DBG_ERR_PF("Cannot handle inverted polarity layers!!!\n");
-				parse_ok = false;
-			}
+			parse_ok = handle_274X_LP(*cur_block_ptr, target);
 			break;
 		
+		case INTPM('L','N'):
+			parse_ok = handle_274X_LN(*cur_block_ptr, target);
+			break;
+			
+		case INTPM('K','O'):
+			// Todo: implement me!
+			parse_ok = false;
+			break;
+			
+		case INTPM('S','R'):
+			// Todo: implement me!
+			parse_ok = false;
+			break;
+			
 			
 		case INTPM('O','F'):
-			// Don't care about offset at the moment
+			// TODO: Implement offset
 			break;
+			
+			// TODO: Implement scale factor
+		case INTPM('S','F'):
+			break;	
+
 		default:
-			DBG_ERR_PF("unmatched 274X paramblock %s - len %ld\n", *cur_block_ptr, strlen(*cur_block_ptr));
+			DBG_ERR_PF("unmatched 274X paramblock %s - len %ld", *cur_block_ptr, strlen(*cur_block_ptr));
 			//parse_ok = false;
 	}
 	
+	if (!parse_ok)
+		DBG_ERR_PF("parse failed for paramblock %s", *cur_block_ptr);
+
 	return parse_ok;
 	
 
@@ -811,8 +900,12 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, RS274X_Program * target)
 	// This assert should always be true - just a safety net
 	assert(**cur_ptr == '%');
 
+	// Handy pointer to our first char
+	char * first_param_char = (*cur_ptr) + 1;
+	
+	
 	// Search for our end of block character
-	char * end_char = (char *)memchr((*cur_ptr) + 1, '%', end_ptr - ((*cur_ptr) + 1) + 1);
+	char * end_char = (char *)memchr(first_param_char, '%', end_ptr - first_param_char + 1);
 
 	// If there isn't an end of block pattern
 	if (end_char == NULL)
@@ -822,11 +915,12 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, RS274X_Program * target)
 		return false;
 	}
 	
-	// Handy pointer to our first char
-	char * first_param_char = (*cur_ptr) + 1;
+
+				   
 	// Length of 274X param
 	int param_len = (end_char-1) - first_param_char + 1;
 	
+	DBG_VERBOSE_PF("Parsing parameter block %d: --%.*s--", param_len, param_len, first_param_char);
 	
 	// Now we find how many blocks there are inside this param
 	long block_count = 0;
@@ -837,11 +931,13 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, RS274X_Program * target)
 			block_count++;
 	}
 
-	DBG_VERBOSE_PF("Block count = %ld\n", block_count);
+	DBG_VERBOSE_PF("Block count = %ld", block_count);
 	
 	if (block_count == 0)
 		block_count = 1;
+	
 	char **pblocks = (char**)malloc(sizeof(char *) * (block_count + 1));
+	
 	// Last one is an end of list flag
 	pblocks[block_count] = NULL;
 
@@ -855,6 +951,11 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, RS274X_Program * target)
 		// if we're already here ;)
 		char * end_of_block = (char*)memchr(param_iter, '*', end_ptr - param_iter);
 		
+		// If there's no * found, we're probably not parsing a well formed file
+		// but make the block out to the end of the input just in case.
+		if (!end_of_block)
+			end_of_block = end_ptr - 1;
+		
 		// Now we create a string up to the end of that block
 		// Noninclusive of end_of_block - because we don't want * at the end
 		pblocks[block_iter] = strndup(param_iter, end_of_block - param_iter - 1);
@@ -863,11 +964,11 @@ bool parse_274X_param(char ** cur_ptr, char * end_ptr, RS274X_Program * target)
 		param_iter = end_of_block + 1;
 
 		// We also want to skip any return characters / whitespace
-		while (isspace(*param_iter) && param_iter < end_ptr) param_iter++;
+		while (param_iter < end_ptr && isspace(*param_iter)) param_iter++;
 		
-		DBG_VERBOSE_PF("Block %ld = %s\n", block_iter, pblocks[block_iter]);
+		DBG_VERBOSE_PF("Block %ld = -%s-", block_iter, pblocks[block_iter]);
 
-		assert (param_iter < end_ptr);
+		assert (param_iter <= end_ptr);
 	}
 	
 	
@@ -1041,7 +1142,7 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 	
 	if (end_of_block == NULL)
 	{
-		DBG_ERR_PF("ERROR - tried to parse unterminated GCODE block\n");
+		DBG_ERR_PF("ERROR - tried to parse unterminated GCODE block");
 		return false;
 	}
 	
@@ -1052,14 +1153,14 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 	//  G?? codes, D?? codes, X?..?, Y?..?, I?..?, J?..?, M??
 	
 	char * temp_ptr = *cur_ptr;
-	bool datablock_ignore = false;
+	bool is_comment = false;
 
 	int remain_iter = remain_len + 1;
-	while ((temp_ptr < end_of_block) && !datablock_ignore)
+	while ((temp_ptr < end_of_block) && !is_comment)
 	{
 		if (remain_iter-- == 0)
 		{
-			DBG_ERR_PF("PARSE HANG - please report this bug and send a test case!\n");
+			DBG_ERR_PF("PARSE HANG - please report this bug and send a test case!");
 			return false;
 		}
 
@@ -1088,7 +1189,7 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 					if (temp_ptr == error_loc)
 					{
 						
-						DBG_ERR_PF("Could not parse %c command value!\n",code_dest);
+						DBG_ERR_PF("Could not parse %c command value!",code_dest);
 						
 						return false;
 					}
@@ -1119,14 +1220,14 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 							 */
 							if (val == 4)
 							{
-								datablock_ignore = true;
+								is_comment = true;
 								break;
 							}
 							// Helper stub will handle adding it to target,
 							// returns false if it was an invalid gval
 							if (!handle_274D_G(val, target))	
 							{
-								DBG_ERR_PF("G-%d is not a valid command!\n", val);
+								DBG_ERR_PF("G-%d is not a valid command!", val);
 									
 								return false;
 							}
@@ -1147,7 +1248,7 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 							((coord_dest == 'X') || (coord_dest == 'I')) ? 'X' : 'Y',
 						       	&target->m_parse_settings))
 					{
-						DBG_ERR_PF("Couldn't parse num constant!\n");
+						DBG_ERR_PF("Couldn't parse num constant!");
 						return false;
 					}
 					
@@ -1174,33 +1275,57 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 					break;
 				}	
 			default:
-				DBG_ERR_PF("Error - couldn't parse GCODE statement\n");
+				DBG_ERR_PF("Error - couldn't parse GCODE statement");
 				return false;
 			break;
 		}
 	}
 
 	// Sometimes we need to ignore a datablock, so thats what this flag is for
-	if (!datablock_ignore)
+	if (!is_comment)
 	{
 		struct RS274X_Program::gcode_block eob;
 		eob.op = RS274X_Program::GCO_END;
 		append_gcode_block(target, eob);
+		
+		// Advance the consumed data pointer to past the end of block ptr
+		*cur_ptr = end_of_block + 1;
+		
+	} else {
+		// Find the end of the commend [end of line]
+		char * end_of_line_0xD = (char*) memchr(*cur_ptr, 0xD, remain_len);
+		char * end_of_line_0xA = (char*) memchr(*cur_ptr, 0xA, remain_len);
+
+		if (end_of_line_0xD == 0 && end_of_line_0xA == 0)
+		{
+			DBG_ERR_PF("Error - unterminated comment [no end of line]\n");
+			return false;
+		}
+		
+		// Advance to the first EOL character
+		if (end_of_line_0xD != 0 && end_of_line_0xD < end_of_line_0xA)
+			*cur_ptr = end_of_line_0xD;
+		else
+			*cur_ptr = end_of_line_0xA;
 	}
 
-
-	// Advance the consumed data pointer to past the end of block ptr
-	*cur_ptr = end_of_block + 1;
 	return true;
 }
 
 // Handy function to eat + echo an unknown line
 void skip_unknown_line(char ** cur_ptr, char * end_ptr)
 {
-	DBG_ERR_PF("Unknown line: ");
-	while (((*cur_ptr) < end_ptr) && ((**cur_ptr) != 0xD) && ((**cur_ptr) != 0xA)) putchar(*(*cur_ptr)++);
+	char output_buf[1024];
+	bzero(output_buf, 1024);
+	char * ob_write_pos = output_buf;
+	
+	while (((*cur_ptr) < end_ptr) && ((**cur_ptr) != 0xD) && ((**cur_ptr) != 0xA)) 
+		if (ob_write_pos < (output_buf + 1023))
+			ob_write_pos = *cur_ptr;
+	
 	while (((*cur_ptr) < end_ptr) && (((**cur_ptr) == 0xD) || ((**cur_ptr) == 0xA))) *(*cur_ptr)++;
-	DBG_ERR_PF("\n");
+	
+	DBG_ERR_PF("Unknown line: %s", output_buf);
 }
 
 
@@ -1246,7 +1371,7 @@ sp_RS274X_Program parseRS274X(char * filename)
 
 	if (!mfile.valid)
 	{
-		DBG_ERR_PF("Could not load file %s\n", filename);
+		DBG_ERR_PF("Could not load file %s", filename);
 		return sp_RS274X_Program();
 	}
 

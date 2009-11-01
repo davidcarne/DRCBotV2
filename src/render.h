@@ -19,29 +19,44 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
+#ifndef _RENDER_H_
+#define _RENDER_H_
 
-debug_level_t debug_level;
+#include <vector>
 
-void setDebugLevel(debug_level_t new_level)
+
+enum flagerr_t
 {
-	debug_level = new_level;
-}
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
+	FLG_NONE=0,
+	FLG_WIDTH=1,
+	FLG_SPACE=2,
+	FLG_NO_OWNER=3,
+};
 
+struct point_line {
+	// Start coordinate, [optional center point for arc]
+	double x,y,cx,cy;
+	
+	enum line_render_type_t
+	{
+		LR_STRAIGHT,
+		LR_ARC	
+	};
+	
+	// and how to draw the line
+	enum line_render_type_t lt;
+};
 
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
+class RenderPoly {
+public:
+	
+	std::vector<struct point_line*> segs;
+	float r,g,b;
+	enum flagerr_t flag;
+	float fillptx, fillpty;
+	int oid;
+	
+};
 
+#endif
 

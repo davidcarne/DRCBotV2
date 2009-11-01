@@ -24,9 +24,13 @@
 #include <assert.h>
 #include <math.h>
 
+#include "gerbobj_line.h"
+#include "gerbobj_poly.h"
+
 #include "gcode_interp.h"
 #include "gerber_parse.h"
 #include "main.h"
+#include "types.h"
 
 enum light_mode_t {
 	L_OFF,
@@ -52,33 +56,34 @@ struct GCODE_state {
 	
 	GerbObj_Poly * cpoly;
 	
-	// Naming is bad here - last is the last set value
-	// aka WHERE WE'RE GOING WHEN WE EXECUTE
-	double last_x;
-	double last_y;
-	double last_i;
-	double last_j;
+	// Destination when we execute
+	double destination_x;
+	double destination_y;
+	double destination_i;
+	double destination_j;
 	
-	// Current is the current location of the print head
-	// aka WHERE WE ARE BEFORE WE EXECUTE
+	// Location before executing
 	double current_x;
 	double current_y;
 	
 };
 
-bool can_trace_aperture(struct aperture * ap)
+bool can_trace_aperture(const struct RS274X_Program::aperture * ap)
 {
-	if (ap->type == AP_MACRO)
+	if (ap->type == RS274X_Program::AP_MACRO)
 		return false;
 	
 	// Don't know what this is, so return false
-	if (ap->type == AP_T)
+	if (ap->type == RS274X_Program::AP_T)
 		return false;
+	
+	
+	return true;
 }
 
-bool handle_G_op(struct GCODE_state * s, struct gcode_block * b, Vector_Outp * v)
+bool handle_G_op(struct GCODE_state * s, const struct RS274X_Program::gcode_block & b, Vector_Outp * v)
 {
-	switch (b->int_data)
+	switch (b.int_data)
 	{
 		case 74:
 			s->interp_360 = false;
@@ -91,7 +96,8 @@ bool handle_G_op(struct GCODE_state * s, struct gcode_block * b, Vector_Outp * v
 			s->poly_fill = true;
 			break;
 		case 37:
-			v->all.insert(s->cpoly);
+			v->all.push_back(sp_GerbObj(s->cpoly));
+			s->cpoly = NULL;
 			s->poly_fill = false;
 			break;
 		case 54:
@@ -104,18 +110,18 @@ bool handle_G_op(struct GCODE_state * s, struct gcode_block * b, Vector_Outp * v
 			break;
 
 		default:
-			s->G_op = b->int_data;	
+			s->G_op = b.int_data;	
 	}
 	return true;
 }
 
-bool handle_D_op(struct GCODE_state * s, struct gcode_block * b)
+bool handle_D_op(struct GCODE_state * s, const struct RS274X_Program::gcode_block & b)
 {
-	if (b->int_data >= 10)
+	if (b.int_data >= 10)
 	{
-		s->last_ap = b->int_data;
+		s->last_ap = b.int_data;
 	} else {
-		switch(b->int_data)
+		switch(b.int_data)
 		{
 			// Draw line
 			case 1:
@@ -130,7 +136,7 @@ bool handle_D_op(struct GCODE_state * s, struct gcode_block * b)
 				s->lm = L_FLASH;
 				break;
 			default:
-				DBG_ERR_PF("Invalid DCODE %d", b->int_data);
+				DBG_ERR_PF("Invalid DCODE %d", b.int_data);
 				return false;
 		}
 	}
@@ -143,67 +149,72 @@ bool handle_D_op(struct GCODE_state * s, struct gcode_block * b)
  * end of programs
  *
  */
-bool handle_M_op(struct GCODE_state * s, struct gcode_block * b)
+bool handle_M_op(struct GCODE_state * s, const struct RS274X_Program::gcode_block & b)
 {
 	s->done = true;
 	return true;
 }
 
-bool handle_coord(struct GCODE_state * s, struct gcode_block * b)
+bool handle_coord(struct GCODE_state * s, const struct RS274X_Program::gcode_block & b)
 {
-	switch (b->op)
+	// TODO: handle abs / inc
+	switch (b.op)
 	{
-		case GCO_X:
-			s->last_x = b->dbl_data;
+		case RS274X_Program::GCO_X:
+			s->destination_x = b.dbl_data;
 			break;
-		case GCO_Y:
-			s->last_y = b->dbl_data;
+		case RS274X_Program::GCO_Y:
+			s->destination_y = b.dbl_data;
 			break;
-		case GCO_I:
-			s->last_i = b->dbl_data;
+		case RS274X_Program::GCO_I:
+			s->destination_i = b.dbl_data;
 			break;
-		case GCO_J:
-			s->last_j = b->dbl_data;
+		case RS274X_Program::GCO_J:
+			s->destination_j = b.dbl_data;
 			break;
+		default:
+			DBG_ERR_PF("Cannot handle coord for op: %d", b.op);
+			return false;
 	}
 	
 	s->coord_accum = true;
+	return true;
 }
 
-GerbObj * aperture_flash_create_poly(struct GCODE_state *s,struct aperture * ap)
+GerbObj * aperture_flash_create_poly(struct GCODE_state *s, const struct RS274X_Program::aperture * ap)
 {
 	assert(ap != NULL);
 
 	switch(ap->type)
 	{
-		case AP_CIRCLE:
+		case RS274X_Program::AP_CIRCLE:
 			{ 
 				GerbObj_Line * l = new GerbObj_Line();
-				l->sx = s->last_x;
-				l->sy = s->last_y;
-				l->ex = s->last_x;
-				l->ey = s->last_y;
+				l->sx = s->destination_x;
+				l->sy = s->destination_y;
+				l->ex = s->destination_x;
+				l->ey = s->destination_y;
 				l->width = ap->circle_p.OD;
 				l->lt = LT_STRAIGHT;
-				l->lc = LC_ROUND;
+				l->lc = GerbObj_Line::LC_ROUND;
 				return l;
 			}
 			break;
-		case AP_RECT:
+		case RS274X_Program::AP_RECT:
 			{
 			
 				GerbObj_Poly * p = new GerbObj_Poly();
 				
 				
-				p->addPoint(Point(s->last_x + ap->rect_p.XAD/2, s->last_y - ap->rect_p.YAD/2));
-				p->addPoint(Point(s->last_x + ap->rect_p.XAD/2, s->last_y + ap->rect_p.YAD/2));
-				p->addPoint(Point(s->last_x - ap->rect_p.XAD/2, s->last_y + ap->rect_p.YAD/2));		
-				p->addPoint(Point(s->last_x - ap->rect_p.XAD/2, s->last_y - ap->rect_p.YAD/2));	
+				p->addPoint(Point(s->destination_x + ap->rect_p.XAD/2, s->destination_y - ap->rect_p.YAD/2));
+				p->addPoint(Point(s->destination_x + ap->rect_p.XAD/2, s->destination_y + ap->rect_p.YAD/2));
+				p->addPoint(Point(s->destination_x - ap->rect_p.XAD/2, s->destination_y + ap->rect_p.YAD/2));		
+				p->addPoint(Point(s->destination_x - ap->rect_p.XAD/2, s->destination_y - ap->rect_p.YAD/2));	
 				return p;
 			}
 			
 			break;
-		case AP_OVAL:
+		case RS274X_Program::AP_OVAL:
 			{
 			
 				
@@ -213,14 +224,14 @@ GerbObj * aperture_flash_create_poly(struct GCODE_state *s,struct aperture * ap)
 				double xs = ap->rect_p.XAD-w;
 				double ys = ap->rect_p.YAD-w;
 				
-				l->sx = s->last_x - xs/2;
-				l->sy = s->last_y - ys/2;
-				l->ex = s->last_x + xs/2;
-				l->ey = s->last_y + ys/2;
+				l->sx = s->destination_x - xs/2;
+				l->sy = s->destination_y - ys/2;
+				l->ex = s->destination_x + xs/2;
+				l->ey = s->destination_y + ys/2;
 				
 				l->width = w;
 				l->lt = LT_STRAIGHT;
-				l->lc = LC_ROUND;
+				l->lc = GerbObj_Line::LC_ROUND;
 				return l;
 			}
 			
@@ -228,7 +239,7 @@ GerbObj * aperture_flash_create_poly(struct GCODE_state *s,struct aperture * ap)
 
 
 			
-		case AP_POLY:
+		case RS274X_Program::AP_POLY:
                 {
                     
                         double r = ap->poly_p.OD / 2;
@@ -238,8 +249,8 @@ GerbObj * aperture_flash_create_poly(struct GCODE_state *s,struct aperture * ap)
                         GerbObj_Poly * p = new GerbObj_Poly();
                         float step = 2.0 * M_PI / si;
 			
-			double xc = s->last_x;
-			double yc = s->last_y;
+			double xc = s->destination_x;
+			double yc = s->destination_y;
                         for (int i=0; i < si; i++)
                         {
 				float ts = step * i + t;
@@ -247,21 +258,20 @@ GerbObj * aperture_flash_create_poly(struct GCODE_state *s,struct aperture * ap)
                         }
                         return p;
                 }
-                case AP_T:
+                case RS274X_Program::AP_T:
 			return NULL;
 			
-		case AP_MACRO:
-			return ap->macro_p.compiled_macro->execute(ap->macro_p.params,s->last_x, s->last_y);
+		case RS274X_Program::AP_MACRO:
+			return ap->macro_p.compiled_macro->execute(ap->macro_p.params,s->destination_x, s->destination_y);
 	}
 	
 	return NULL;
 }
 
-extern double angle_from_dxdy(double dx, double dy);
 
-GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct aperture * ap)
+GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s, const struct RS274X_Program::aperture * ap)
 {
-	if (ap->type != AP_CIRCLE)
+	if (ap->type != RS274X_Program::AP_CIRCLE)
 	{
 		
 		// create the aperture
@@ -269,28 +279,27 @@ GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct apert
 
 		if (!p)
 		{
-			DBG_ERR_PF("Cannot slide non-circ, non-poly AP\n");
+			DBG_ERR_PF("Cannot slide non-circ, non-poly AP");
 			return NULL;
 		}
 		// Now we rotate the aperture so the slide line is on the x;
-		double sl_vec[2] = {s->current_x - s->last_x, s->current_y - s->last_y};
+		double sl_vec[2] = {s->current_x - s->destination_x, s->current_y - s->destination_y};
 
-		double theta = -angle_from_dxdy(sl_vec[0], sl_vec[1]);
+		double theta = -atan2(sl_vec[1], sl_vec[0]);
 
 		double maxY = -1000000;
 		double minY =  1000000;
 		int maxYi = 0;
 		int minYi = 0;
 		int i=0;
-		//printf("%f %f %f\n", sl_vec[0], sl_vec[1], sin(theta) * sl_vec[0] + cos(theta) * sl_vec[1]);
+
 		GerbObj_Poly::i_point_list_t it = p->points.begin();
 		for (; it != p->points.end(); it++,i++)
 		{
 			
 			Point & p = *it;
 			 
-			double y_ = sin(theta) * (p.x - s->last_x) + cos(theta) * (p.y-s->last_y);
-			//printf("[%f] %f %f %f\n",theta,  (p.x-s->last_x), (p.y-s->last_y), y_);
+			double y_ = sin(theta) * (p.x - s->destination_x) + cos(theta) * (p.y-s->destination_y);
 			
 			if (y_ < minY)
 			{
@@ -305,8 +314,6 @@ GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct apert
 			}
 		}
 		
-		//printf("%f %d %f %d\n", minY, minYi, maxY, maxYi); 
-
 		GerbObj_Poly * n = new GerbObj_Poly();
 		
 		i=0;
@@ -317,7 +324,7 @@ GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct apert
 			if (!mode)
 				n->addPoint(*it);
 			else	
-				n->addPoint(Point((*it).x - s->last_x + s->current_x, (*it).y - s->last_y + s->current_y));
+				n->addPoint(Point((*it).x - s->destination_x + s->current_x, (*it).y - s->destination_y + s->current_y));
 				
 			if (i == maxYi || i== minYi)
 			{
@@ -326,7 +333,7 @@ GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct apert
 				if (!mode)
 					n->addPoint(*it);
 				else	
-					n->addPoint(Point((*it).x - s->last_x + s->current_x, (*it).y - s->last_y + s->current_y));
+					n->addPoint(Point((*it).x - s->destination_x + s->current_x, (*it).y - s->destination_y + s->current_y));
 			}
 		}
 		
@@ -338,11 +345,11 @@ GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct apert
 		
 		GerbObj_Line * obj = new GerbObj_Line();
 		
-		obj->lc = LC_ROUND;
+		obj->lc = GerbObj_Line::LC_ROUND;
 		obj->lt = LT_STRAIGHT;
 		obj->width = ap->circle_p.OD;
-		obj->sx = s->last_x;
-		obj->sy = s->last_y;
+		obj->sx = s->destination_x;
+		obj->sy = s->destination_y;
 		obj->ex = s->current_x;
 		obj->ey = s->current_y;
 		return obj;
@@ -350,7 +357,7 @@ GerbObj * aperture_slide_create_poly_straight(struct GCODE_state *s,struct apert
 
 }
 
-GerbObj * aperture_slide_create_poly(struct GCODE_state *s,struct aperture * ap)
+GerbObj * aperture_slide_create_poly(struct GCODE_state *s, const struct RS274X_Program::aperture * ap)
 {
 	switch(s->G_op){
 		case 1: 
@@ -362,25 +369,25 @@ GerbObj * aperture_slide_create_poly(struct GCODE_state *s,struct aperture * ap)
 }
 
 	
-GerbObj * create_poly(struct GCODE_state * s, struct gerber_file * gerb)
+GerbObj * create_poly(struct GCODE_state * s, sp_RS274X_Program gerb)
 {
 	assert(s->lm != L_OFF);
 
 	
 	if (s->lm == L_ON)
 	{
-		return aperture_slide_create_poly(s,gerb->ap_list[s->last_ap]);
+		return aperture_slide_create_poly(s, gerb->getAperture(s->last_ap));
 	}
 
 	if (s->lm == L_FLASH)
 	{
-		return aperture_flash_create_poly(s,gerb->ap_list[s->last_ap]);
+		return aperture_flash_create_poly(s, gerb->getAperture(s->last_ap));
 	}
 	
 	return NULL;
 }
 
-void createPolysForCurve(struct GCODE_state * s, struct gerber_file * gerb, Vector_Outp * vect, bool poly_point) {
+void createPolysForCurve(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * vect, bool poly_point) {
 	
 	double cx;
 	double cy;
@@ -399,14 +406,14 @@ void createPolysForCurve(struct GCODE_state * s, struct gerber_file * gerb, Vect
 	
 	if (s->interp_360)
 	{
-		cx = s->current_x + s->last_i;
-		cy = s->current_y + s->last_j;
+		cx = s->current_x + s->destination_i;
+		cy = s->current_y + s->destination_j;
 	} else {
 		// TODO: implement quad testing
 		return;
 	}
 	
-	double r = sqrt(s->last_i*s->last_i + s->last_j*s->last_j);
+	double r = sqrt(s->destination_i*s->destination_i + s->destination_j*s->destination_j);
 	
 	// hack for poorly spec'ed I/J coords
 	double r2 = sqrt((s->current_x-cx)*(s->current_x-cx) + (s->current_y-cy)*(s->current_y-cy));
@@ -416,8 +423,8 @@ void createPolysForCurve(struct GCODE_state * s, struct gerber_file * gerb, Vect
 	double st_theta_sin = asin(fmin((s->current_y - cy)/r,1.0));
 	double st_theta_cos = acos(fmin((s->current_x - cx)/r,1.0));
 	
-	double en_theta_sin = asin(fmin((s->last_y - cy)/r,1.0));
-	double en_theta_cos = acos(fmin((s->last_x - cx)/r,1.0));
+	double en_theta_sin = asin(fmin((s->destination_y - cy)/r,1.0));
+	double en_theta_cos = acos(fmin((s->destination_x - cx)/r,1.0));
 
 	double st_theta = (st_theta_sin >= 0 ? st_theta_cos : 2*M_PI - st_theta_cos );
 	double en_theta = (en_theta_sin >= 0 ? en_theta_cos : 2*M_PI - en_theta_cos );;
@@ -441,21 +448,16 @@ void createPolysForCurve(struct GCODE_state * s, struct gerber_file * gerb, Vect
 		steps = -steps;
 
 	double theta_step = theta_D / steps;
-//	if (stepdir == S_CW)
-//		theta_step *= -1;
-		
-	double last_x = s->current_x;
-	double last_y = s->current_y;
+
+	double destination_x = s->current_x;
+	double destination_y = s->current_y;
 
 	if (!poly_point)
-		s->cpoly->addPoint(Point(last_x, last_y));
-
-	//printf("CURVE: cx=%f cy=%f theta_D=%f st=%f,%f en=%f,%f step=%f[%d]\n",cx,cy,theta_D,s->last_x,s->last_y,s->current_x, s->current_y,theta_step,steps);
-	//printf("CURVE2: s/s=%f s/c=%f, e/s=%f, e/c=%f\n", st_theta_sin, st_theta_cos, en_theta_sin, en_theta_cos);
-	//printf("CURVE3: %f\n",(s->last_x - cx)/r);
+		s->cpoly->addPoint(Point(destination_x, destination_y));
 
 
-GErr * e;
+
+	GErr * e;
 		
 
 	for (int i=1; i<= steps; i++)
@@ -465,34 +467,31 @@ GErr * e;
 		double y = sin(theta) * r + cy;
 		if (poly_point)
 		{
-			//printf("\tlastx %f, lasty %f, x %f, y %f\n",last_x, last_y, x,y);
 			GerbObj_Line * obj = new GerbObj_Line();
 		
-			obj->lc = LC_ROUND;
+			obj->lc = GerbObj_Line::LC_ROUND;
 			obj->lt = LT_STRAIGHT;
-			obj->width = gerb->ap_list[s->last_ap]->circle_p.OD;
-			obj->sx = last_x;
-			obj->sy = last_y;
+			obj->width = gerb->getAperture(s->last_ap)->circle_p.OD;
+			obj->sx = destination_x;
+			obj->sy = destination_y;
 			obj->ex = x;
 			obj->ey = y;
 		
 			
 	
-			vect->all.insert(obj);
+			vect->all.push_back(sp_GerbObj(obj));
 		} else {
 			s->cpoly->addPoint(Point(x, y));
 		}
 		
-		last_x = x;
-		last_y = y;
+		destination_x = x;
+		destination_y = y;
 	}
 
 
 }
 
-#undef DBG_ERR_PF
-#define DBG_ERR_PF printf
-bool handle_exec(struct GCODE_state * s, struct gerber_file * gerb, Vector_Outp * vect)
+bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * vect)
 {
 	
 	// Check if we've accumulated any coords since the last exec
@@ -501,7 +500,7 @@ bool handle_exec(struct GCODE_state * s, struct gerber_file * gerb, Vector_Outp 
 		// Make sure that the aperture is ok.
 		
 		// argh - some programs zero with an invalid ap
-		if (gerb->ap_list[s->last_ap] == NULL && !s->poly_fill)
+		if (gerb->getAperture(s->last_ap) == NULL && !s->poly_fill)
 		{
 			DBG_ERR_PF("BAD AP %d", s->last_ap);
 			return true;
@@ -523,38 +522,30 @@ bool handle_exec(struct GCODE_state * s, struct gerber_file * gerb, Vector_Outp 
 					
 						if (output_poly != NULL)
 						{
-							vect->all.insert(output_poly);
+							vect->all.push_back(sp_GerbObj(output_poly));
 						} else {
 					
-							printf("Unhandled Move from (%lf,%lf) to (%lf,%lf) ap %d light %s\n", 
-							 s->current_x, s->current_y, s->last_x, s->last_y, s->last_ap,
+							DBG_ERR_PF("Unhandled Move from (%lf,%lf) to (%lf,%lf) ap %d light %s", 
+							 s->current_x, s->current_y, s->destination_x, s->destination_y, s->last_ap,
 							 s->lm == L_OFF ? "off" : s->lm == L_ON ? "on" : "flash");
-							 GErr * e = new GErr();
-							 
-							 return false;
-							 
-							 // Flash occurs @ print head start! not print head end
-							 e->x = s->last_x;
-							 e->y = s->last_y;
-							 e->nx = s->current_x;
-							 e->ny = s->current_y;
-							 e->t = s->lm == L_FLASH ? ERR_Unhand : ERR_Line;
-							 vect->errors.insert(e);
-						
+
+							return false;
 						}
 					} else {
 						if (s->lm == L_FLASH)
 						{
-							DBG_ERR_PF("Cannot flash on poly fill!\n");
+							DBG_ERR_PF("Cannot flash on poly fill!");
 							return false;
 						}
-							s->cpoly->addPoint(Point(s->last_x, s->last_y));
+						s->cpoly->addPoint(Point(s->destination_x, s->destination_y));
 					}
+					
+
 				}
 				
 				
-				s->current_x = s->last_x;
-				s->current_y = s->last_y;
+				s->current_x = s->destination_x;
+				s->current_y = s->destination_y;
 			}
 			break;
 				
@@ -567,37 +558,25 @@ bool handle_exec(struct GCODE_state * s, struct gerber_file * gerb, Vector_Outp 
 					{	
 						GerbObj * output_poly = create_poly(s,gerb);
 
-                                                if (output_poly != NULL)
-                                                {
-                                                        vect->all.insert(output_poly);
-                                                } else {
+						if (output_poly != NULL)
+						{
+								vect->all.push_back(sp_GerbObj(output_poly));
+						} else {
 
-                                                        printf("Unhandled Move from (%lf,%lf) to (%lf,%lf) ap %d light %s\n",
-                                                         s->current_x, s->current_y, s->last_x, s->last_y, s->last_ap,
-                                                         s->lm == L_OFF ? "off" : s->lm == L_ON ? "on" : "flash");
-                                                         GErr * e = new GErr();
+								DBG_ERR_PF("Unhandled Move from (%lf,%lf) to (%lf,%lf) ap %d light %s",
+								 s->current_x, s->current_y, s->destination_x, s->destination_y, s->last_ap,
+								 s->lm == L_OFF ? "off" : s->lm == L_ON ? "on" : "flash");
+								 GErr * e = new GErr();
 
-                                                         return false;
-
-                                                         // Flash occurs @ print head start! not print head end
-                                                         e->x = s->last_x;
-                                                         e->y = s->last_y;
-                                                         e->nx = s->current_x;
-                                                         e->ny = s->current_y;
-                                                         e->t = s->lm == L_FLASH ? ERR_Unhand : ERR_Line;
-                                                         vect->errors.insert(e);
-
-                                                }
+								 return false;
+						}
 					}
 				} else {
 					createPolysForCurve(s,gerb,vect, false);
-					//printf("Don't even think about curved polys\n");
-					//return false;
 				}
 				
-				// Aha - curve issues caused by not moving print head
-				s->current_x = s->last_x;
-				s->current_y = s->last_y;
+				s->current_x = s->destination_x;
+				s->current_y = s->destination_y;
 				break;
 
 			case 10:
@@ -611,13 +590,18 @@ bool handle_exec(struct GCODE_state * s, struct gerber_file * gerb, Vector_Outp 
 		
 	}
 	
+	// per page 45 of the RS274X specification, rev E
+	// L_FLASH stays in effect until a new layer is encountered.
+	// That implies that L_ON does not, so reset after execution
+	if (s->lm == L_ON)
+		s->lm = L_OFF;
 	
 	// Reset the coordinate accumulator
 	s->coord_accum = false;
 	return true;
 }
 
-Vector_Outp * gcode_run(struct gerber_file * gerb)
+sp_Vector_Outp gcode_run(sp_RS274X_Program gerb)
 {
 
 	Vector_Outp * pt = new Vector_Outp();
@@ -626,58 +610,67 @@ Vector_Outp * gcode_run(struct gerber_file * gerb)
 	bzero(&plot_state, sizeof(GCODE_state));
 
 	plot_state.um = UNITMODE_IN;
+	
 	// HACK: some gerbers assume we start with AP 10.
 	//plot_state.last_ap = 10;
+	// TODO: Determine if this needs to be re-enabled.
+	
+	
 	// Eagle doesn't seem to include this :/
 	plot_state.G_op = 1;
 	
-	printf("Starting GCODE Virtual Machine\n");
+	DBG_MSG_PF("Starting GCODE Virtual Machine\n");
 
-	struct gcode_block * cur_op = gerb->first_gcode;
-
-	while ((cur_op != NULL) && (!plot_state.done))
+	RS274X_Program::operations_list_t::const_iterator ci = 
+		gerb->m_operations.begin();
+	
+	RS274X_Program::operations_list_t::const_iterator end = 
+		gerb->m_operations.end();
+	
+	while (ci != end && (!plot_state.done))
 	{
-		switch (cur_op->op)
+		const struct RS274X_Program::gcode_block & cur_op = *ci;
+		switch (cur_op.op)
 		{
-			case GCO_G:
+			case RS274X_Program::GCO_G:
 				handle_G_op(&plot_state, cur_op, pt);
 				break;
 				
-			case GCO_M:
+			case RS274X_Program::GCO_M:
 				if (!handle_M_op(&plot_state, cur_op))
-					return NULL;
+					return sp_Vector_Outp();
 				break;
 				
-			case GCO_D:
+			case RS274X_Program::GCO_D:
 				if (!handle_D_op(&plot_state, cur_op))
-					return NULL;
+					return sp_Vector_Outp();
 					
 				break;
 				
-			case GCO_X:
-			case GCO_Y:
-			case GCO_I:
-			case GCO_J:
+			case RS274X_Program::GCO_X:
+			case RS274X_Program::GCO_Y:
+			case RS274X_Program::GCO_I:
+			case RS274X_Program::GCO_J:
 				handle_coord(&plot_state, cur_op);
 				break;
 
-			case GCO_END:
+			case RS274X_Program::GCO_END:
 				if (!handle_exec(&plot_state, gerb, pt))
 				{
-					printf("Could not execute gcode block!\n");
-					return NULL;
+					DBG_ERR_PF("Could not execute gcode block!");
+					return sp_Vector_Outp();
 				}
 				break;
 
-			case GCO_DIR:;
+			case RS274X_Program::GCO_DIR:;
 				//printf("Directive matching unhandled!\n");
 				//return NULL;
 		}
-		cur_op = cur_op->next;
+		ci++;
 	}
-	printf("GCODE Virtual Machine Finished\n");
+	DBG_MSG_PF("GCODE Virtual Machine Finished\n");
 
-	return pt;
+	return sp_Vector_Outp(pt);
 }
 
 

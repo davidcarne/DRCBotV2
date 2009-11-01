@@ -19,29 +19,53 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
 
-debug_level_t debug_level;
+#ifndef _GERBOBJ_POLY_H_
+#define _GERBOBJ_POLY_H_
 
-void setDebugLevel(debug_level_t new_level)
-{
-	debug_level = new_level;
-}
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
+#include "gerbobj.h"
+#include <list>
 
+class GerbObj_Poly : public GerbObj {
+public:
+	
+	GerbObj_Poly() : GerbObj() {cached = false;};
+	
+	typedef std::list<Point> point_list_t;
+	typedef point_list_t::iterator i_point_list_t;
+	
+	void addPoint(Point p)
+	{
+		points.push_back(p);
+	}
+	
+	bool is_ccw(void);
+	Rect getBounds()
+	{
+		if (!cached)
+		{
+			cached_rect = Rect();
+			i_point_list_t i = points.begin();
+			
+			for (;i!=points.end();i++)
+			{
+				cached_rect.mergePoint(*i);
+			}
+		}	
+		
+		cached = true;
+		return cached_rect;
+	}
+	
+	point_list_t points;
 
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
+	
+private:	
+	Rect cached_rect;
+	bool cached;
 
+protected:
+	RenderPoly * createPolyData();
+};
 
+#endif

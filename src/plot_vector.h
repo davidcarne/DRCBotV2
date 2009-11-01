@@ -23,7 +23,9 @@
 #define _PLOT_VECTOR_H_
 
 #include <gd.h>
-	
+
+class Vector_Outp;
+
 class plotOptions {
 	public:
 	plotOptions(){showBoundingBoxes = false; colorByGroups = false;};
@@ -46,7 +48,7 @@ class plotOptions {
 
 };
 gdImagePtr plot_vector(Vector_Outp * vf,  plotOptions & p);
-void plot_vector_onto(Vector_Outp * vf,  plotOptions & p, gdImagePtr im);
+void plot_vector_onto(Vector_Outp * vf,  plotOptions & p, gdImagePtr );
 
 
 #endif

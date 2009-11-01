@@ -19,29 +19,14 @@
  *
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include "gcode_interp.h"
-#include "main.h"
-#include <gd.h>
+#include <boost/python.hpp>
+#include "wrap_fns.h"
 
-debug_level_t debug_level;
-
-void setDebugLevel(debug_level_t new_level)
+BOOST_PYTHON_MODULE(_gerber_utils)
 {
-	debug_level = new_level;
+	aperture_wrap();
+	gerberParserWrap();
+	gcodeInterpWrap();
+	plotWrap();
 }
-/*
-GerbObj_Line * cast_GerbObj_ToLine(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Line*>(v);
-}
-
-
-GerbObj_Poly * cast_GerbObj_ToPoly(GerbObj * v)
-{
-	return dynamic_cast<GerbObj_Poly*>(v);
-}*/
-
 

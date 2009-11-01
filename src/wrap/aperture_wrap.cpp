@@ -1,8 +1,31 @@
+/*
+ *  Portions Copyright 2006,2009 David Carne and 2007,2008 Spark Fun Electronics
+ *
+ *
+ *  This file is part of gerberDRC.
+ *
+ *  gerberDRC is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  gerberDRC is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
 
 #include <boost/python.hpp>
 #include "wrap_fns.h"
 #include "main.h"
 #include "gerber_parse.h"
+
+#include "pair.h"
 
 static boost::python::object aperatureValueHelper(RS274X_Program::aperture & blk)
 {
@@ -31,6 +54,40 @@ static boost::python::object aperatureValueHelper(RS274X_Program::aperture & blk
 typedef const RS274X_Program::aperture_map_t r274apm_t;
 typedef r274apm_t::const_iterator (r274apm_t::*rci)(void) const;
 typedef r274apm_t::const_reverse_iterator (r274apm_t::*rrci)(void) const;
+
+std::string aperture_str(const RS274X_Program::aperture * ap )
+{
+	std::string mystr = "<AP ";
+	switch (ap->type)
+	{
+		case RS274X_Program::AP_CIRCLE:
+			mystr += "CIRCLE";
+			break;
+			
+		case RS274X_Program::AP_RECT:
+			mystr += "RECT";
+			break;
+			
+		case RS274X_Program::AP_OVAL:
+			mystr += "OVAL";
+			break;
+			
+		case RS274X_Program::AP_POLY:
+			mystr += "POLY";
+			break;
+			
+		case RS274X_Program::AP_T:
+			mystr += "THERMAL";
+			break;
+			
+		case RS274X_Program::AP_MACRO:
+			mystr += "MACRO";
+			break;
+	}
+	
+	mystr += " >";
+	return mystr;
+}
 
 void aperture_wrap(void)
 {
@@ -81,10 +138,15 @@ void aperture_wrap(void)
 	
 	class_<RS274X_Program::aperture>("aperature", init<>())
 	.def_readonly("ap_type", &RS274X_Program::aperture::type)
-	.add_property("value", aperatureValueHelper);
+	.add_property("value", aperatureValueHelper)
+	.def("__str__", aperture_str)
+	.def("__repr__", aperture_str)
+	;
+	
+	to_python_converter<std::pair<int const, RS274X_Program::aperture*>, PairToTupleConverter<int const, RS274X_Program::aperture*> >();
 	
 	class_<RS274X_Program::aperture_map_t>("aperture_map_t", init<>())
-	.def("__iteritems__", range(static_cast<rci>(&r274apm_t::begin), 
+	.def("iteritems", range(static_cast<rci>(&r274apm_t::begin), 
 						   static_cast<rci>(&r274apm_t::end)))
 	/*.def("__reversed__", range(static_cast<rrci>(&r274apm_t::rbegin), 
 							   static_cast<rrci>(&r274apm_t::rend)))*/

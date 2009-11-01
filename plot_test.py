@@ -14,11 +14,15 @@ o = OptionParser()
 o.add_option("-d", "--debug-level", 
 	type="int", dest="debuglevel", default=1,
 	help="Debug Level; 0-4, 4 being most verbose")
+
+o.add_option("-m", "--render-mode", 
+	type="str", dest="rendermode", default="REALISTIC_TOP",
+	help="one of REALISTIC_TOP, REALISTIC_BOT, EAGLE")
 	
 (options, args) = o.parse_args()
 
 calculate_sizing_using_only_zero_width_lines = False
-mode = "REALISTIC_TOP"
+mode = options.rendermode
 
 gerberDRC.setDebugLevel(gerberDRC.debug_level_t(options.debuglevel))
 
@@ -29,6 +33,7 @@ def identifyLayer(name, convention="PROTEL"):
 
 	if convention == "PROTEL":
 		protel_layers = {
+			"GML" : ("RS274X","OUTLINE"),
 			"GTP" : ("RS274X","PASTE_TOP"),
 			"GTO" : ("RS274X","SILKSCREEN_TOP"),
 			"GTS" : ("RS274X","SOLDERMASK_TOP"),
@@ -155,7 +160,7 @@ def choosePlotSettings(rentype):
 			ps.ovb = 0.0
 		else:
 			ps.alpha = 0
-			
+	
 	return ps
 		
 def renderGerberFile(rep, cr, rentype, outlines):
@@ -202,9 +207,9 @@ def renderGerberFile(rep, cr, rentype, outlines):
 
 layers = {}
 c=0
-path = "examples/HEXAPOD/"
+path = "examples/gerbers/"
 for i in os.listdir(path):
-	
+	print "Parsing: %s" % i
 	identification = identifyLayer(i)
 	
 	if not identification:
@@ -233,7 +238,7 @@ for i in os.listdir(path):
 		continue
 
 
-render_order = ["PASTE_TOP","SILKSCREEN_TOP","SOLDERMASK_TOP",
+render_order = ["MILLING", "PASTE_TOP","SILKSCREEN_TOP","SOLDERMASK_TOP",
 	"COPPER_TOP","COPPER_1","COPPER_2","COPPER_BOTTOM",
 	"SOLDERMASK_BOTTOM", "SILKSCREEN_BOTTOM", "PASTE_BOTTOM"]
 
@@ -262,8 +267,29 @@ def point_hash(x,y):
 
 
 outline_paths = []
-		
-if "COPPER_TOP" in layers:
+
+if "MILLING" in layers:
+	g = networkx.Graph()
+	t = layers["MILLING"];
+	for k in t.all:
+		if isinstance(k, gerberDRC.GerbObj_Line):
+			g.add_node(point_hash(k.sx, k.sy), startpoint=(k.sx, k.sy))
+			g.add_node(point_hash(k.ex, k.ey), startpoint=(k.ex, k.ey))
+			
+			g.add_edge(point_hash(k.sx, k.sy), point_hash(k.ex, k.ey))
+	c= networkx.connected_components(g)
+	
+	subg = [g.subgraph(i, copy=True) for i in c]
+	for i in subg:
+		if all([j == 2 for j in i.degree()]):
+			
+			path = []
+			ordered = networkx.dfs_preorder(i)
+			for j in ordered:
+				path += [i.node[j]['startpoint']]
+			outline_paths += [path]
+			
+elif "COPPER_TOP" in layers:
 	g = networkx.Graph()
 	t = layers["COPPER_TOP"];
 	for k in t.all:
@@ -313,6 +339,7 @@ for i in reversed(render_order):
 		renderGerberFile(t, cr, i, outline_paths)
 
 if "DRILL" in layers:
+	print "Rendering Drills"
 	cr.set_operator(cairo.OPERATOR_OVER)
 	cr.set_source_rgba(0,0,0,1);
 	for tool,x,y in layers["DRILL"].hits:

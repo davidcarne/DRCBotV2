@@ -188,8 +188,8 @@ int tY(float y, const plotOptions & p)
 	return p.rh - (int)((y+p.offY) * p.scale);
 }
 
-void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
-{
+void plot_vector_onto(sp_Vector_Outp vf, plotOptions &ps, gdImagePtr im)
+{	
 	gdImagePtr im_old = im;
 	gdImageAlphaBlending(im, 1);
 	if (ps.drawinverted)
@@ -359,7 +359,7 @@ void plot_vector_onto(Vector_Outp * vf, plotOptions &ps, gdImagePtr im)
 	}
 }
 
-gdImagePtr plot_vector(Vector_Outp * vf, plotOptions &ps)
+gdImagePtr plot_vector(sp_Vector_Outp vf, plotOptions &ps)
 {
 	gdImagePtr im = gdImageCreateTrueColor(ps.rw, ps.rh);
 	plot_vector_onto(vf,ps,im);

@@ -24,7 +24,8 @@
 
 #include <gd.h>
 
-class Vector_Outp;
+
+#include "gcode_interp.h"
 
 class plotOptions {
 	public:
@@ -47,8 +48,8 @@ class plotOptions {
 	int rw,rh;
 
 };
-gdImagePtr plot_vector(Vector_Outp * vf,  plotOptions & p);
-void plot_vector_onto(Vector_Outp * vf,  plotOptions & p, gdImagePtr );
+gdImagePtr plot_vector(sp_Vector_Outp vf,  plotOptions & p);
+void plot_vector_onto(sp_Vector_Outp vf,  plotOptions & p, gdImagePtr );
 
 
 #endif

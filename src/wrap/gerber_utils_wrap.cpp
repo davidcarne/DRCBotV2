@@ -27,6 +27,5 @@ BOOST_PYTHON_MODULE(_gerber_utils)
 	aperture_wrap();
 	gerberParserWrap();
 	gcodeInterpWrap();
-	plotWrap();
 }
 

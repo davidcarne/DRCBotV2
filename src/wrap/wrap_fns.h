@@ -26,6 +26,5 @@
 void aperture_wrap(void);
 void gerberParserWrap(void);
 void gcodeInterpWrap(void);
-void plotWrap(void);
 #endif
 

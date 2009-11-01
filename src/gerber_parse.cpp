@@ -1298,8 +1298,11 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 
 		if (end_of_line_0xD == 0 && end_of_line_0xA == 0)
 		{
-			DBG_ERR_PF("Error - unterminated comment [no end of line]\n");
-			return false;
+			if (end_of_block == 0)
+				return false;
+			
+			*cur_ptr = end_of_block + 1;
+			return true;
 		}
 		
 		// Advance to the first EOL character

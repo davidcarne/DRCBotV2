@@ -500,7 +500,7 @@ bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * v
 		// Make sure that the aperture is ok.
 		
 		// argh - some programs zero with an invalid ap
-		if (gerb->getAperture(s->last_ap) == NULL && !s->poly_fill)
+		if (gerb->getAperture(s->last_ap) == NULL && !s->poly_fill && s->lm != L_OFF)
 		{
 			DBG_ERR_PF("BAD AP %d", s->last_ap);
 			return true;

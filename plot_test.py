@@ -5,10 +5,11 @@ from optparse import OptionParser
 
 import cairo._cairo as cairo
 
-import gerberDRC
+import gerberDRC as GD
+import gerberDRC.util as GU
 import math
-import networkx
 
+import plot_modes
 o = OptionParser()
 
 o.add_option("-d", "--debug-level", 
@@ -17,174 +18,45 @@ o.add_option("-d", "--debug-level",
 
 o.add_option("-m", "--render-mode", 
 	type="str", dest="rendermode", default="REALISTIC_TOP",
-	help="one of REALISTIC_TOP, REALISTIC_BOT, EAGLE")
-	
+	help="one of REALISTIC_TOP, REALISTIC_BOTTOM, EAGLE")
+
+o.add_option("--bounds-artwork", 
+    dest="bounds_artwork", default=False, action="store_true",
+	help="calculate bounds from all artwork, using all segments and layers unless -0 or --visible-only specified.")
+
+o.add_option("-0", "--hairlines-only", 
+    dest="size0", default=False, action="store_true",
+	help="use only zero width lines for calculating bounding rect\n"
+		"Only applies in conjunction with --bounds-artwork")
+
+o.add_option("--visible-only", 
+    dest="bounding_from_visible_only", default=False, action="store_true",
+	help="use only visible layers for calculating bounding rect. Only applies in conjunction with --bounds-artwork")	
 (options, args) = o.parse_args()
 
 if (len(args) != 1):
 	print "You must supply an argument - path/to/gerber/files/folder"
 	exit(1)
+
+if not options.rendermode in ["REALISTIC_TOP", "REALISTIC_BOTTOM", "EAGLE"]:
+	print "Error, bad render mode %s" % options.rendermode
+	exit(1)
 	
 path = args[0]
-
-calculate_sizing_using_only_zero_width_lines = False
 mode = options.rendermode
 
-gerberDRC.setDebugLevel(gerberDRC.debug_level_t(options.debuglevel))
+GD.setDebugLevel(GD.debug_level_t(options.debuglevel))
 
-def identifyLayer(name, convention="PROTEL"):
-	if name.find('.') == -1: return None
-	
-	extension = name[1+name.rfind("."):].upper()
+plotmode = plot_modes.getPlotSettings(options.rendermode)
 
-	if convention == "PROTEL":
-		protel_layers = {
-			"GML" : ("RS274X","OUTLINE"),
-			"GTP" : ("RS274X","PASTE_TOP"),
-			"GTO" : ("RS274X","SILKSCREEN_TOP"),
-			"GTS" : ("RS274X","SOLDERMASK_TOP"),
-			"GTL" : ("RS274X","COPPER_TOP"),
-			"GBL" : ("RS274X","COPPER_BOTTOM"),
-			"GBS" : ("RS274X","SOLDERMASK_BOTTOM"),
-			"GBO" : ("RS274X","SILKSCREEN_BOTTOM"),
-			"GBP" : ("RS274X","PASTE_BOTTOM"),
-			"GML" : ("RS274X","MILLING"),
-			"TXT" : ("EXCELLON","DRILL")
-			};
-		if extension in protel_layers:
-			return protel_layers[extension]
-	
 
-class PlotSet(object):
-	def __init__(self):
-		self.alpha = 1
-		self.ovr = 0
-		self.ovg = 0
-		self.ovb = 0
-		self.drawfilled = True
-		self.drawinverted = False
-		self.strokeZeroWidthLines = False
-		self.clipToZeroWidthLines = False
-		self.renderOperator = cairo.OPERATOR_OVER
-		
-def creatCairoContourPath(obj, cr):
-	segs = obj.getPolyData().segs
-	
-	cr.move_to (segs[0].x, segs[0].y);
-	for j in xrange(len(segs[1:])+1):
-			a = segs[j]
-			b = segs[(j+1)% len(segs)]
-			if (a.lt == gerberDRC.point_line.line_render_type_t.LR_ARC):
-				#print a.x, a.y
-				angle1 = math.atan2(a.y - a.cy, a.x - a.cx)
-				angle2 = math.atan2(b.y - a.cy, b.x - a.cx)
-				radius1 = math.sqrt((a.y - a.cy) ** 2 + (a.x - a.cx) ** 2)
-				cr.arc(a.cx, a.cy, radius1, angle1, angle2)
-			else:
-				cr.line_to (b.x, b.y);
 
 def createCairoLineCenterLinePath(obj, cr):
 	cr.move_to (obj.sx, obj.sy);
 	cr.line_to (obj.ex, obj.ey);
-
-def setBackground(cr, outlines):
-	global mode
-	
-	if mode == "REALISTIC_TOP":
-		cr.set_operator(cairo.OPERATOR_OVER)
-		cr.set_source_rgba(0,0,0, 1)
-		cr.paint()
 		
-		cr.set_source_rgba(0.9140625*.9, 0.9140625*.9, 0.6796875*.9, 1)
-		
-		if outlines:
-			for i in outlines:
-				cr.move_to(i[0][0], i[0][1])
-				for x,y in i[1:]:
-					cr.line_to(x,y)
-				cr.close_path()
-				cr.fill()
-		else:
-			cr.paint()
-			
-	elif mode == "EAGLE":
-		cr.set_operator(cairo.OPERATOR_OVER)
-		cr.set_source_rgba(0,0,0, 1)
-		cr.paint()
-		print "EAGLE MODE"
-		
-			
-		
-	
-def choosePlotSettings(rentype):
-	global mode
-	
-	
-	ps = PlotSet()
-	
-	ps.drawfilled = True
-	ps.drawinverted = False
-	ps.strokeZeroWidthLines = True
-	
-
-	if mode == "ALL_BLACK":
-			ps.ovr = 0
-			ps.ovg = 0
-			ps.ovb = 0
-	if mode == "EAGLE":
-		if (rentype.startswith("SILKSCREEN")):
-			ps.ovr = 0.9
-			ps.ovg = 0.9
-			ps.ovb = 0.9
-		elif (rentype == "COPPER_TOP"):
-			ps.ovr = 0.5
-			ps.ovg = 0
-			ps.ovb = 0
-		elif (rentype == "COPPER_BOTTOM"):
-			ps.ovr = 0
-			ps.ovg = 0
-			ps.ovb = 0.5
-		elif (rentype.startswith("SOLDERMASK")):
-			ps.alpha = 0.3
-			ps.drawfilled = True
-			ps.strokeZeroWidthLines = False
-			ps.ovr = 0.8
-			ps.ovg = 0.8
-			ps.ovb = 0.0
-		else:
-			ps.ovr = 1
-			ps.ovg = 0
-			ps.ovb = 1
-			
-		ps.renderOperator = cairo.OPERATOR_ADD
-		
-	elif mode == "REALISTIC_TOP":
-		if (rentype.startswith("SILKSCREEN_TOP")):
-			ps.ovr = 0.95
-			ps.ovg = 0.95
-			ps.ovb = 0.95
-		elif (rentype == "COPPER_TOP"):
-			ps.ovr = 0.84765625
-			ps.ovg = 0.52734375
-			ps.ovb = 0.09765625
-			ps.strokeZeroWidthLines = False
-
-		elif (rentype.startswith("SOLDERMASK_TOP")):
-			ps.alpha = 0.8
-			ps.drawfilled = True
-			ps.strokeZeroWidthLines = False
-			ps.drawinverted = True
-			ps.ovr = 0.0
-			ps.ovg = 0.4
-			ps.ovb = 0.0
-		else:
-			ps.alpha = 0
-	
-	return ps
-		
-def renderGerberFile(rep, cr, rentype, outlines):
-
-	ps = choosePlotSettings(rentype)
+def renderGerberFile(rep, cr, layer, outlines):
+	ps = plotmode.getPlotSettings(layer)
 	
 	cr.push_group()
 	if not ps.drawinverted:
@@ -208,11 +80,11 @@ def renderGerberFile(rep, cr, rentype, outlines):
 	cr.set_source_rgba(ps.ovr, ps.ovg, ps.ovb, 1)
 
 	for k in rep.all:
-		if isinstance(k, gerberDRC.GerbObj_Line) and (k.width == 0) and ps.strokeZeroWidthLines:
+		if isinstance(k, GD.GerbObj_Line) and (k.width == 0) and ps.strokeZeroWidthLines:
 				createCairoLineCenterLinePath(k,cr)
 				cr.stroke()
 		else:
-			creatCairoContourPath(k, cr)
+			GD.emitGerbObjectCairoPath(cr, k)
 			
 			if (ps.drawfilled):
 				cr.fill()
@@ -224,12 +96,11 @@ def renderGerberFile(rep, cr, rentype, outlines):
 	cr.set_operator(ps.renderOperator)
 
 
+# Load all layers from the directory
 layers = {}
-c=0
-
 for i in os.listdir(path):
 	print "Parsing: %s" % i
-	identification = identifyLayer(i)
+	identification = GU.identifyLayer(i)
 	
 	if not identification:
 		print "Could not identify type of %s - skipping." % i
@@ -237,19 +108,21 @@ for i in os.listdir(path):
 	
 	fmt, layer = identification
 
-
 	if (fmt == 'RS274X'):
-		f = gerberDRC.parseFile(path+i)
+		f = GD.parseFile(path+i)
 		if (not f):
 			print "Could not parse %s" % src
 			continue 
 		
-		p = gerberDRC.runRS274XProgram(f)
-
+		p = GD.runRS274XProgram(f)
+		if (not f):
+			print "Could not create polygons for %s" % src
+			continue 
+			
 		layers[layer] = p
-
+		
 	elif (fmt == 'EXCELLON'):
-		f = gerberDRC.parseExcellon(path + i)
+		f = GD.parseExcellon(path + i)
 		layers[layer] = f
 		
 	else:
@@ -257,105 +130,57 @@ for i in os.listdir(path):
 		continue
 
 
-render_order = ["MILLING", "PASTE_TOP","SILKSCREEN_TOP","SOLDERMASK_TOP",
-	"COPPER_TOP","COPPER_1","COPPER_2","COPPER_BOTTOM",
-	"SOLDERMASK_BOTTOM", "SILKSCREEN_BOTTOM", "PASTE_BOTTOM"]
+render_order = plotmode.getRenderOrder()
 
-#render_order = ["SOLDERMASK_TOP"]
-imgfile = None
-
-
-IMSIZE = 1024
-
-r = gerberDRC.Rect()
-for i in reversed(render_order):
-	if i in layers.keys():
-		t = layers[i];
-		for k in t.all:
-			if calculate_sizing_using_only_zero_width_lines and \
-				(not isinstance(k, gerberDRC.GerbObj_Line) or (k.width != 0)):
-				continue;
-			r.mergeBounds(k.getBounds())
-			
-if "DRILL" in layers:
-	layers["DRILL"].scaleToFit((r.getEndPoint().x, r.getEndPoint().y))
-
-
-def point_hash(x,y):
-	return (int(round(x/0.0001)), int(round(y/0.0001)))
-
-
+# Calculate the outline path used for drawing the board substrate and calculating
+# board coordinates
 outline_paths = []
-
 if "MILLING" in layers:
-	g = networkx.Graph()
 	t = layers["MILLING"];
-	for k in t.all:
-		if isinstance(k, gerberDRC.GerbObj_Line):
-			g.add_node(point_hash(k.sx, k.sy), startpoint=(k.sx, k.sy))
-			g.add_node(point_hash(k.ex, k.ey), startpoint=(k.ex, k.ey))
-			
-			g.add_edge(point_hash(k.sx, k.sy), point_hash(k.ex, k.ey))
-	c= networkx.connected_components(g)
-	
-	subg = [g.subgraph(i, copy=True) for i in c]
-	for i in subg:
-		if all([j == 2 for j in i.degree()]):
-			
-			path = []
-			ordered = networkx.dfs_preorder(i)
-			for j in ordered:
-				path += [i.node[j]['startpoint']]
-			outline_paths += [path]
-			
+	outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line)]
+	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)
 elif "COPPER_TOP" in layers:
-	g = networkx.Graph()
 	t = layers["COPPER_TOP"];
-	for k in t.all:
-		if isinstance(k, gerberDRC.GerbObj_Line) and (k.width == 0):
-			g.add_node(point_hash(k.sx, k.sy), startpoint=(k.sx, k.sy))
-			g.add_node(point_hash(k.ex, k.ey), startpoint=(k.ex, k.ey))
-			
-			g.add_edge(point_hash(k.sx, k.sy), point_hash(k.ex, k.ey))
-			
-	c= networkx.connected_components(g)
-	
-	subg = [g.subgraph(i, copy=True) for i in c]
-	for i in subg:
-		if all([j == 2 for j in i.degree()]):
-			
-			path = []
-			ordered = networkx.dfs_preorder(i)
-			for j in ordered:
-				path += [i.node[j]['startpoint']]
-			outline_paths += [path]
-			
+	outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line) and (k.width == 0)]
+	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)			
 
-maxdim = max(r.getWidth(), r.getHeight())
-scale = IMSIZE / maxdim
+# Calculate the board area, for use in setting up the image / image transform
+if outline_paths and not options.bounds_artwork:
+	srcrect = GU.calculateBoundingRectFromOutlines(outline_paths)
+else:
+	check_layers = [v for k,v in layers.items() if not k.startswith("DRILL")]
+	if (options.bounding_from_visible_only):
+		check_layers = [v for k,v in layers.items() if k in render_order and not k.startswith("DRILL")]
+	srcrect = GU.calculateBoundingRectFromObjects(check_layers, options.size0)
 
-WIDTH = scale * r.getWidth() 
-HEIGHT = scale * r.getHeight()
+# Try to guess-fit the drill layer
+if "DRILL" in layers:
+	layers["DRILL"].scaleToFit((srcrect.getEndPoint().x, srcrect.getEndPoint().y))
 
-PAD=100
 
-r.printRect()
-surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, int(WIDTH)+PAD, int(HEIGHT)+PAD)
-#surface = cairo.PDFSurface("render/layers.pdf", int(WIDTH)+PAD, int(HEIGHT)+PAD)
+
+# Calculate the image size and transform
+(width, height), transform = GD.prepareCairoTransform(1024, srcrect, pad = 50, trim_to_ratio = True,
+		**plotmode.getTransformArgs())
+
+# Prepare a surface to render onto
+surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
 cr = cairo.Context(surface)
-cr.scale(scale, -scale)
-cr.translate(-r.getStartPoint().x + PAD/2/scale,-r.getHeight()-r.getStartPoint().y - PAD/2/scale);
-cr.set_line_width(5.0/WIDTH)
 
-setBackground(cr, outline_paths)
+# Apply the transform to the context
+transform(cr)
+
+# Setup the background
+plotmode.renderBackground(cr, outline_paths)
 
 for i in reversed(render_order):
-	if i in layers.keys():
-
+	try:
 		t = layers[i];
+	except KeyError:
+		continue
 		
-		print "Rendering %s - " % i, t
-		renderGerberFile(t, cr, i, outline_paths)
+	print "Rendering %s - " % i, t
+	renderGerberFile(t, cr, i, outline_paths)
 
 if "DRILL" in layers:
 	print "Rendering Drills"
@@ -367,6 +192,5 @@ if "DRILL" in layers:
 		cr.close_path()
 		cr.fill()
 		
-fo = open('render/layers.png', 'w')
-surface.write_to_png(fo)
+surface.write_to_png(open('render/layers.png', 'w'))
 

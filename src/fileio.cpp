@@ -69,7 +69,7 @@ struct mapped_file map_file(char * filename)
 	if (debug_level >= DEBUG_VERBOSE)
 	{
 		printf("Input file name = %s\n", filename);
-		printf("Input file size = %llu\n", file_size);
+		printf("Input file size = %llu\n", print_file_size);
 	}
 	
 	// Try to open the file

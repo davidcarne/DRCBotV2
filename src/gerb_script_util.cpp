@@ -24,7 +24,6 @@
 #include <stdlib.h>
 #include "gcode_interp.h"
 #include "main.h"
-#include <gd.h>
 
 debug_level_t debug_level;
 

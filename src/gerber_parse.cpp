@@ -845,7 +845,7 @@ bool parse_274X_param_do_block(char ** cur_block_ptr, RS274X_Program * target, i
 			break;	
 
 		default:
-			DBG_ERR_PF("unmatched 274X paramblock %s - len %ld", *cur_block_ptr, strlen(*cur_block_ptr));
+			DBG_ERR_PF("unmatched 274X paramblock %s - len %ld", *cur_block_ptr, (long int)strlen(*cur_block_ptr));
 			//parse_ok = false;
 	}
 	

@@ -21,6 +21,12 @@ o.add_option("-m", "--render-mode",
 	
 (options, args) = o.parse_args()
 
+if (len(args) != 1):
+	print "You must supply an argument - path/to/gerber/files/folder"
+	exit(1)
+	
+path = args[0]
+
 calculate_sizing_using_only_zero_width_lines = False
 mode = options.rendermode
 
@@ -85,7 +91,7 @@ def setBackground(cr, outlines):
 	global mode
 	
 	if mode == "REALISTIC_TOP":
-		cr.set_operator(cairo.OPERATOR_SOURCE)
+		cr.set_operator(cairo.OPERATOR_OVER)
 		cr.set_source_rgba(0,0,0, 1)
 		cr.paint()
 		
@@ -100,6 +106,13 @@ def setBackground(cr, outlines):
 				cr.fill()
 		else:
 			cr.paint()
+			
+	elif mode == "EAGLE":
+		cr.set_operator(cairo.OPERATOR_OVER)
+		cr.set_source_rgba(0,0,0, 1)
+		cr.paint()
+		print "EAGLE MODE"
+		
 			
 		
 	
@@ -135,8 +148,7 @@ def choosePlotSettings(rentype):
 			ps.alpha = 0.3
 			ps.drawfilled = True
 			ps.strokeZeroWidthLines = False
-			ps.drawinverted = True
-			ps.ovr = 0.0
+			ps.ovr = 0.8
 			ps.ovg = 0.8
 			ps.ovb = 0.0
 		else:
@@ -214,7 +226,7 @@ def renderGerberFile(rep, cr, rentype, outlines):
 
 layers = {}
 c=0
-path = "examples/HEXAPOD/"
+
 for i in os.listdir(path):
 	print "Parsing: %s" % i
 	identification = identifyLayer(i)
@@ -336,7 +348,7 @@ cr.translate(-r.getStartPoint().x + PAD/2/scale,-r.getHeight()-r.getStartPoint()
 cr.set_line_width(5.0/WIDTH)
 
 setBackground(cr, outline_paths)
-		
+
 for i in reversed(render_order):
 	if i in layers.keys():
 

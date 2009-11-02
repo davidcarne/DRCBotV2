@@ -97,7 +97,7 @@ def setBackground(cr, outlines):
 				for x,y in i[1:]:
 					cr.line_to(x,y)
 				cr.close_path()
-			cr.fill()
+				cr.fill()
 		else:
 			cr.paint()
 			
@@ -113,6 +113,11 @@ def choosePlotSettings(rentype):
 	ps.drawinverted = False
 	ps.strokeZeroWidthLines = True
 	
+
+	if mode == "ALL_BLACK":
+			ps.ovr = 0
+			ps.ovg = 0
+			ps.ovb = 0
 	if mode == "EAGLE":
 		if (rentype.startswith("SILKSCREEN")):
 			ps.ovr = 0.9
@@ -150,6 +155,8 @@ def choosePlotSettings(rentype):
 			ps.ovr = 0.84765625
 			ps.ovg = 0.52734375
 			ps.ovb = 0.09765625
+			ps.strokeZeroWidthLines = False
+
 		elif (rentype.startswith("SOLDERMASK_TOP")):
 			ps.alpha = 0.8
 			ps.drawfilled = True
@@ -207,7 +214,7 @@ def renderGerberFile(rep, cr, rentype, outlines):
 
 layers = {}
 c=0
-path = "examples/gerbers/"
+path = "examples/HEXAPOD/"
 for i in os.listdir(path):
 	print "Parsing: %s" % i
 	identification = identifyLayer(i)
@@ -350,3 +357,4 @@ if "DRILL" in layers:
 		
 fo = open('render/layers.png', 'w')
 surface.write_to_png(fo)
+

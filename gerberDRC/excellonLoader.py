@@ -131,8 +131,8 @@ def parseExcellon(file):
 				current_tool = int(m.group("id"))
 				
 		elif i.startswith("X") or i.startswith("Y"):
-
-				m = re.findall(r"([XY][+-][0-9.]+)", i)
+				
+				m = re.findall(r"([XY][+-]?[0-9.]+)", i)
 				
 				x = None
 				y = None

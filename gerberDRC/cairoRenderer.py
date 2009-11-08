@@ -6,7 +6,7 @@ try:
 except:
 	import cairo._cairo as cairo
 
-	import _gerber_utils
+import _gerber_utils
 
 def emitGerbObjectCairoPath(context, gerbobj):
 	cr = context

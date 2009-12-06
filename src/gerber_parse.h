@@ -269,6 +269,7 @@ public:
 		};
 	};
 	
+	enum unit_mode parse_um;
 	struct gcode_block {
 		enum gcode_op_type op;
 		

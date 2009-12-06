@@ -25,6 +25,12 @@
 
 #include "gerbobj_poly.h"
 
+float Macro_VM::convert_unit(float v)
+{
+	if (m_um == UNITMODE_IN) return v * 25400;
+	return v * 1000;
+}
+
 /* Render a n-gon primitive
  * p: destination polygon
  * x,y: head location at macro invocation
@@ -50,7 +56,7 @@ bool Macro_VM::renderPrim5(GerbObj_Poly * p, float x, float y)
 	for (int i=0; i< verts; i++)
 	{
 		float theta = i*thetaStep+rot;
-		p->addPoint(Point(cos(theta)*diam+xc+x, sin(theta)*diam+yc+y));
+		p->addPoint(Point(convert_unit(cos(theta)*diam+xc+x), convert_unit(sin(theta)*diam+yc+y)));
 	}
 	return true;
 }
@@ -70,7 +76,7 @@ bool Macro_VM::renderPrim4(GerbObj_Poly * p, float x, float y)
 		float ay = mem_stack.top(); mem_stack.pop();
 		float ax = mem_stack.top(); mem_stack.pop();
 
-		p->addPoint(Point(x+ax, y+ay));
+		p->addPoint(Point(convert_unit(x+ax), convert_unit(y+ay)));
 	}
 	while (mem_stack.size() > 0)
 	{
@@ -100,11 +106,11 @@ bool Macro_VM::renderPrim21(GerbObj_Poly * p, float x, float y)
 	float t = atan(yh / xh);
 	float r = sqrt(xh*xh / 4 + yh*yh / 4);
 
-	p->addPoint(Point(cos(rot + t)*r+x, sin(rot + t)*r+y));
-	p->addPoint(Point(cos(rot - t)*r+x, sin(rot - t)*r+y));
+	p->addPoint(Point(convert_unit(cos(rot + t)*r+x), convert_unit(sin(rot + t)*r+y)));
+	p->addPoint(Point(convert_unit(cos(rot - t)*r+x), convert_unit(sin(rot - t)*r+y)));
 
-	p->addPoint(Point(cos(rot + t + M_PI)*r+x, sin(rot + t + M_PI)*r+y));
-	p->addPoint(Point(cos(rot - t + M_PI)*r+x, sin(rot - t + M_PI)*r+y));
+	p->addPoint(Point(convert_unit(cos(rot + t + M_PI)*r+x), convert_unit(sin(rot + t + M_PI)*r+y)));
+	p->addPoint(Point(convert_unit(cos(rot - t + M_PI)*r+x), convert_unit(sin(rot - t + M_PI)*r+y)));
 	// last two are exp + verts
 	return true;
 }

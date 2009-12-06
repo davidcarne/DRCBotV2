@@ -37,6 +37,15 @@
 #include "main.h"
 
 
+static double unit_convert(struct RS274X_Program * s, double data)
+{
+	if (s->parse_um == UNITMODE_IN)
+		return data * 25400;
+	return data * 1000;
+}
+
+
+
 // Also takes overlapping vectors to mean single signal - IPC365 helpful here?
 
 /********************************************************/
@@ -319,13 +328,13 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 					return false;
 				}
 				ap->type = RS274X_Program::AP_CIRCLE;
-				ap->circle_p.OD = atof(arg_list[0]);
+				ap->circle_p.OD = unit_convert(target, atof(arg_list[0]));
 
 				if (param_count > 1)
-					ap->circle_p.XAHD = atof(arg_list[1]);
+					ap->circle_p.XAHD = unit_convert(target, atof(arg_list[1]));
 				
 				if (param_count > 2)
-					ap->circle_p.YAHD = atof(arg_list[2]);
+					ap->circle_p.YAHD = unit_convert(target, atof(arg_list[2]));
 
 				break;
 			case 'R':
@@ -336,13 +345,13 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 					return false;
 				}
 				ap->type = RS274X_Program::AP_RECT;
-				ap->rect_p.XAD = atof(arg_list[0]);
-				ap->rect_p.YAD = atof(arg_list[1]);				
+				ap->rect_p.XAD = unit_convert(target, atof(arg_list[0]));
+				ap->rect_p.YAD = unit_convert(target, atof(arg_list[1]));				
 				if (param_count > 2)
-					ap->rect_p.XAHD = atof(arg_list[1]);
+					ap->rect_p.XAHD = unit_convert(target, atof(arg_list[1]));
 				
 				if (param_count > 3)
-					ap->rect_p.YAHD = atof(arg_list[2]);
+					ap->rect_p.YAHD = unit_convert(target, atof(arg_list[2]));
 				
 				break;
 
@@ -354,13 +363,13 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 					return false;
 				}
 				ap->type = RS274X_Program::AP_OVAL;
-				ap->oval_p.XAD = atof(arg_list[0]);
-				ap->oval_p.YAD = atof(arg_list[1]);				
+				ap->oval_p.XAD = unit_convert(target, atof(arg_list[0]));
+				ap->oval_p.YAD = unit_convert(target, atof(arg_list[1]));				
 				if (param_count > 2)
-					ap->oval_p.XAHD = atof(arg_list[1]);
+					ap->oval_p.XAHD = unit_convert(target, atof(arg_list[1]));
 				
 				if (param_count > 3)
-					ap->oval_p.YAHD = atof(arg_list[2]);
+					ap->oval_p.YAHD = unit_convert(target, atof(arg_list[2]));
 				break;
 				
 			case 'P':
@@ -372,17 +381,17 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 				}
 				ap->type = RS274X_Program::AP_POLY;
 
-				ap->poly_p.OD = atof(arg_list[0]);
+				ap->poly_p.OD = unit_convert(target, atof(arg_list[0]));
 				ap->poly_p.NS = atoi(arg_list[1]);
 
 				if (param_count > 2)
 					ap->poly_p.DR = atoi(arg_list[2]);
 				
 				if (param_count > 3)
-					ap->poly_p.XAHD = atoi(arg_list[3]);
+					ap->poly_p.XAHD = unit_convert(target, atof(arg_list[3]));
 				
 				if (param_count > 4)
-					ap->poly_p.YAHD = atoi(arg_list[4]);
+					ap->poly_p.YAHD = unit_convert(target, atof(arg_list[4]));
 				break;
 				
 			case 'T':
@@ -394,7 +403,6 @@ bool handle_274X_AD(char * block, RS274X_Program * target)
 			free_delim_list(arg_list);
 	} else {
 		// Check if it exists in the macro list
-		// However - right now we can't parse macros
 		DBG_MSG_PF("aperture define %ld MACRO [%s]", ap_num, block);
 		
 		ap = new RS274X_Program::aperture();
@@ -631,9 +639,11 @@ bool handle_274X_MO(char * block, RS274X_Program * target)
 	{
 		
 		um = UNITMODE_MM;
+		target->parse_um = um;
 	} else if ((block[0] == 'I') && (block[1] == 'N'))
 	{
 		um = UNITMODE_IN;
+		target->parse_um = um;
 	} else {
 
 		DBG_ERR_PF("Error - invalid Mode line");
@@ -660,7 +670,7 @@ bool handle_274X_AM(char ** cur_block_ptr, RS274X_Program * target, int * consum
 {
 	*consumed = 0;
 	char * macroName = strdup(*cur_block_ptr + 2);
-	Macro_VM * vm = new Macro_VM();
+	Macro_VM * vm = new Macro_VM(target->parse_um);
 	
 	DBG_VERBOSE_PF("Macro Name = %s",macroName);
 	*cur_block_ptr ++;
@@ -1223,6 +1233,15 @@ bool parse_274D_command_word(char ** cur_ptr, char * end_ptr, RS274X_Program * t
 								is_comment = true;
 								break;
 							}
+							
+							
+							// Set parse unitmode, for aperture declarations
+							if (val == 70)
+								target->parse_um = UNITMODE_IN;
+							
+							if (val == 71)
+								target->parse_um = UNITMODE_MM;
+
 							// Helper stub will handle adding it to target,
 							// returns false if it was an invalid gval
 							if (!handle_274D_G(val, target))	

@@ -111,12 +111,12 @@ for i in os.listdir(path):
 	if (fmt == 'RS274X'):
 		f = GD.parseFile(path+i)
 		if (not f):
-			print "Could not parse %s" % src
+			print "Could not parse %s" % path+i
 			continue 
 		
 		p = GD.runRS274XProgram(f)
 		if (not f):
-			print "Could not create polygons for %s" % src
+			print "Could not create polygons for %s" % path+i
 			continue 
 			
 		layers[layer] = p

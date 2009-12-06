@@ -68,6 +68,13 @@ struct GCODE_state {
 	
 };
 
+double unit_convert(struct GCODE_state * s, double data)
+{
+	if (s->um == UNITMODE_IN)
+		return data * 25400;
+	return data * 1000;
+}
+
 bool can_trace_aperture(const struct RS274X_Program::aperture * ap)
 {
 	if (ap->type == RS274X_Program::AP_MACRO)
@@ -161,16 +168,16 @@ bool handle_coord(struct GCODE_state * s, const struct RS274X_Program::gcode_blo
 	switch (b.op)
 	{
 		case RS274X_Program::GCO_X:
-			s->destination_x = b.dbl_data;
+			s->destination_x = unit_convert(s, b.dbl_data);
 			break;
 		case RS274X_Program::GCO_Y:
-			s->destination_y = b.dbl_data;
+			s->destination_y = unit_convert(s, b.dbl_data);
 			break;
 		case RS274X_Program::GCO_I:
-			s->destination_i = b.dbl_data;
+			s->destination_i = unit_convert(s, b.dbl_data);
 			break;
 		case RS274X_Program::GCO_J:
-			s->destination_j = b.dbl_data;
+			s->destination_j = unit_convert(s, b.dbl_data);
 			break;
 		default:
 			DBG_ERR_PF("Cannot handle coord for op: %d", b.op);

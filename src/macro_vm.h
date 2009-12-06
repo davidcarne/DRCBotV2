@@ -25,6 +25,7 @@
 #include <list>
 #include <stack>
 #include <vector>
+#include "types.h"
 
 /* This VM draws from some of the ideas used in gerbv's macro parser,
  * but no code was copied, or used as a direct reference */
@@ -53,6 +54,8 @@ class GerbObj_Poly;
 class Macro_VM {
 
 	public:
+	Macro_VM(enum unit_mode um) : m_um(um) {};
+	
 	GerbObj_Poly * execute(double * params, float x, float y);
 	
 	void addInstr(MACRO_OP_TYPE t, float fval, int ival)
@@ -69,13 +72,14 @@ class Macro_VM {
 		bool renderPrim5(GerbObj_Poly * p, float x, float y);
 		bool renderPrim4(GerbObj_Poly * p, float x, float y);
 		bool renderPrim21(GerbObj_Poly * p, float x, float y);
+		float convert_unit(float v);
 		typedef std::vector<Macro_OP> code_type_t;
 		typedef code_type_t::iterator i_code_type_t;
 		
 		code_type_t code;
 		std::stack<float> mem_stack;
 
-
+	enum unit_mode m_um;
 };
 
 bool parse_macro(Macro_VM * vm, const char * str);

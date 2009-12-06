@@ -42,20 +42,27 @@ class ExcellonRep(object):
 			newhits += [(tool, x/scale, y/scale)]
 		self.hits = newhits
 			
-def calcCoord(coord, mode, maxwidth):
+def calcCoord(coord, unit, mode, maxwidth):
+	mult = 1000
+	if (unit == "INCH"): mult = 25400
+	
 	sign = '+'
 	if coord[0] in '+-':
 		sign = coord[0]
 		coord = coord[1:]
 	if mode == "FIXED" or mode == "TRAILING":
-		return int(sign + coord)
+		return int(sign + coord) * mult
 	if mode == "LEADING":
-		return int(sign + ("%-*s" % (maxwidth,coord)).replace(" ","0"))
+		return int(sign + ("%-*s" % (maxwidth,coord)).replace(" ","0")) * mult
 
+def unit_convert(mode, value):
+	if mode == "INCH": return value * 25400
+	elif mode == "METRIC": return value * 1000
+	
 def parseExcellon(file):
 	
 	rep = ExcellonRep()
-	
+	unit_mode = "INCH"
 	lines = open(file,"r").readlines()
 	
 	content_lines = []
@@ -65,15 +72,23 @@ def parseExcellon(file):
 		if i == "%":
 			in_header = False
 		elif i.startswith("M48"):
-			in_header = True
+			in_header = True			
 		elif in_header:
+		
+			
+			if i.startswith("M72") or i.startswith("METRIC"):
+				unit_mode = "INCH"
+				
+			if i.startswith("M71") or i.startswith("INCH"):
+				unit_mode = "METRIC"
+				
 			if (i.startswith("T")):
 				m = re.match(r"^T(?P<id>\d+)C(?P<size>[0-9.]+)$", i)
 				if not m:
 					print "Error, could not parse T line %d: %s" % (num, i)
 					return
 				id = int(m.group("id"))
-				size = float(m.group("size"))
+				size = unit_convert(unit_mode, float(m.group("size")))
 				rep.rack.addDrill(id, size)
 	
 		else:
@@ -122,6 +137,12 @@ def parseExcellon(file):
 	for i in content_lines:
 		if i.startswith("M30"):
 			break;
+				
+		if i.startswith("M72"):
+			unit_mode = "INCH"
+			
+		if i.startswith("M71"):
+			unit_mode = "METRIC"
 			
 		if i.startswith("T"):
 				m = re.match(r"^T(?P<id>\d+)*$", i)
@@ -138,7 +159,7 @@ def parseExcellon(file):
 				y = None
 				for i in m:
 					coord = i[0]
-					value = calcCoord(i[1:], parsemode, max_coord_digits)
+					value = calcCoord(i[1:], unit_mode, parsemode, max_coord_digits)
 					if (coord == 'X'):
 						x = value
 					if (coord == 'Y'):

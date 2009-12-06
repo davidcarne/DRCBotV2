@@ -68,7 +68,7 @@ struct GCODE_state {
 	
 };
 
-double unit_convert(struct GCODE_state * s, double data)
+static double unit_convert(struct GCODE_state * s, double data)
 {
 	if (s->um == UNITMODE_IN)
 		return data * 25400;

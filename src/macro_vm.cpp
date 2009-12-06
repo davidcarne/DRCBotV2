@@ -56,7 +56,7 @@ bool Macro_VM::renderPrim5(GerbObj_Poly * p, float x, float y)
 	for (int i=0; i< verts; i++)
 	{
 		float theta = i*thetaStep+rot;
-		p->addPoint(Point(convert_unit(cos(theta)*diam+xc+x), convert_unit(sin(theta)*diam+yc+y)));
+		p->addPoint(Point(convert_unit(cos(theta)*diam+xc)+x, convert_unit(sin(theta)*diam+yc)+y));
 	}
 	return true;
 }
@@ -76,7 +76,7 @@ bool Macro_VM::renderPrim4(GerbObj_Poly * p, float x, float y)
 		float ay = mem_stack.top(); mem_stack.pop();
 		float ax = mem_stack.top(); mem_stack.pop();
 
-		p->addPoint(Point(convert_unit(x+ax), convert_unit(y+ay)));
+		p->addPoint(Point(convert_unit(ax)+x, convert_unit(ay)+y));
 	}
 	while (mem_stack.size() > 0)
 	{
@@ -106,11 +106,11 @@ bool Macro_VM::renderPrim21(GerbObj_Poly * p, float x, float y)
 	float t = atan(yh / xh);
 	float r = sqrt(xh*xh / 4 + yh*yh / 4);
 
-	p->addPoint(Point(convert_unit(cos(rot + t)*r+x), convert_unit(sin(rot + t)*r+y)));
-	p->addPoint(Point(convert_unit(cos(rot - t)*r+x), convert_unit(sin(rot - t)*r+y)));
+	p->addPoint(Point(convert_unit(cos(rot + t)*r)+x, convert_unit(sin(rot + t)*r+y)));
+	p->addPoint(Point(convert_unit(cos(rot - t)*r)+x, convert_unit(sin(rot - t)*r+y)));
 
-	p->addPoint(Point(convert_unit(cos(rot + t + M_PI)*r+x), convert_unit(sin(rot + t + M_PI)*r+y)));
-	p->addPoint(Point(convert_unit(cos(rot - t + M_PI)*r+x), convert_unit(sin(rot - t + M_PI)*r+y)));
+	p->addPoint(Point(convert_unit(cos(rot + t + M_PI)*r)+x, convert_unit(sin(rot + t + M_PI)*r)+y));
+	p->addPoint(Point(convert_unit(cos(rot - t + M_PI)*r)+x, convert_unit(sin(rot - t + M_PI)*r)+y));
 	// last two are exp + verts
 	return true;
 }

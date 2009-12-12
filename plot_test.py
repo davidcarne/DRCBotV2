@@ -31,7 +31,14 @@ o.add_option("-0", "--hairlines-only",
 
 o.add_option("--visible-only", 
     dest="bounding_from_visible_only", default=False, action="store_true",
-	help="use only visible layers for calculating bounding rect. Only applies in conjunction with --bounds-artwork")	
+	help="use only visible layers for calculating bounding rect. Only applies in conjunction with --bounds-artwork")
+	
+o.add_option("--fec", "--fallback-exc-stripped", 
+    dest="fec", default="LEADING",
+	help="Fallback incase the stripping of leading/trailing zeros could not be determined. Default is LEADING zeros stripped")
+
+o.add_option("--son0", "--search-outline-nonzero", 
+    dest="search_outline_nonzero", default=False, action="store_true", help="Also look at non-zero lines when determining board outline [WARNING, SLOW]")
 (options, args) = o.parse_args()
 
 if (len(args) != 1):
@@ -68,7 +75,7 @@ def renderGerberFile(rep, cr, layer, outlines):
 		if outlines:
 			for i in outlines:
 				cr.move_to(i[0][0], i[0][1])
-				for x,y in i[1:]:
+				for x,y,_ in i[1:]:
 					cr.line_to(x,y)
 				cr.close_path()
 			cr.fill()
@@ -122,8 +129,11 @@ for i in os.listdir(path):
 		layers[layer] = p
 		
 	elif (fmt == 'EXCELLON'):
-		f = GD.parseExcellon(path + i)
-		layers[layer] = f
+		f = GD.parseExcellon(path + i, options.fec)
+		
+		# Fail gracefully if the excellon file could not be parsed
+		if (f):
+			layers[layer] = f
 		
 	else:
 		print "Can't handle file type %s" % fmt
@@ -141,17 +151,51 @@ if "MILLING" in layers:
 	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)
 elif "COPPER_TOP" in layers:
 	t = layers["COPPER_TOP"];
-	outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line) and (k.width == 0)]
-	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)			
+	if options.search_outline_nonzero:
+		outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line)]
+	else:
+		outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line) and k.width == 0]
+	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)
+
+
+# Calculate a bounding rectangle using either all visible objects, or only zero-width lines
+check_layers = [v for k,v in layers.items() if not k.startswith("DRILL")]
+if (options.bounding_from_visible_only):
+	check_layers = [v for k,v in layers.items() if k in render_order and not k.startswith("DRILL")]
+artwork_bounds = GU.calculateBoundingRectFromObjects(check_layers, options.size0)
 
 # Calculate the board area, for use in setting up the image / image transform
 if outline_paths and not options.bounds_artwork:
 	srcrect = GU.calculateBoundingRectFromOutlines(outline_paths)
-else:
-	check_layers = [v for k,v in layers.items() if not k.startswith("DRILL")]
-	if (options.bounding_from_visible_only):
-		check_layers = [v for k,v in layers.items() if k in render_order and not k.startswith("DRILL")]
-	srcrect = GU.calculateBoundingRectFromObjects(check_layers, options.size0)
+
+	srcrect_sane = True
+	copper_layers = [v for k,v in layers.iteritems() if k.startswith("COPPER")]
+	copper_bounds = GU.calculateBoundingRectFromVisibleObjects(copper_layers)
+
+	# Check if we have artwork outside the source rectangle
+	if  srcrect.getStartPoint().x > copper_bounds.getStartPoint().x or \
+		srcrect.getStartPoint().y > copper_bounds.getStartPoint().y or \
+		srcrect.getEndPoint().x < copper_bounds.getEndPoint().x or \
+		srcrect.getEndPoint().y < copper_bounds.getEndPoint().y:
+		srcrect_sane = False 
+
+
+	if not srcrect_sane:
+		print "Warning, copper bounds extend outside of outline-calculated-rectangle," +\
+				"falling back to default 'rectangular' board based on bounds-rect"
+		srcrect = copper_bounds
+		outline_paths = [[
+				(srcrect.getStartPoint().x, srcrect.getStartPoint().y, 0),
+				(srcrect.getStartPoint().x, srcrect.getEndPoint().y, 0),
+				(srcrect.getEndPoint().x, srcrect.getEndPoint().y, 0),
+				(srcrect.getEndPoint().x, srcrect.getStartPoint().y, 0)
+			]]
+		
+if not outline_paths or options.bounds_artwork:
+	# No outline path found, or bounds were supposed to be found from all artwork
+	# so use all artwork except for unscaled drill layer and determine coords
+	srcrect = artwork_bounds
+
 
 # Try to guess-fit the drill layer
 if "DRILL" in layers:
@@ -179,7 +223,7 @@ for i in reversed(render_order):
 	except KeyError:
 		continue
 		
-	print "Rendering %s - " % i, t
+	print "Rendering %s" % i
 	renderGerberFile(t, cr, i, outline_paths)
 
 if "DRILL" in layers:

@@ -16,8 +16,8 @@ def buildCyclePathsForLineSegments(segments):
 		start_node = point_round(i.sx, i.sy)
 		end_node = point_round(i.ex, i.ey)
 		
-		g.add_node(start_node, startpoint=(i.sx, i.sy))
-		g.add_node(end_node,   startpoint=(i.ex, i.ey))
+		g.add_node(start_node, startpoint=(i.sx, i.sy, i.width))
+		g.add_node(end_node,   startpoint=(i.ex, i.ey, i.width))
 		g.add_edge(start_node, end_node)
 	
 	# separate into disjoint subcomponents 
@@ -51,13 +51,21 @@ def calculateBoundingRectFromObjects(layers, useOnlyZeroWidth=True):
 			if not useOnlyZeroWidth or isinstance(gerb_obj, GD.GerbObj_Line) and (gerb_obj.width == 0):
 					r.mergeBounds(gerb_obj.getBounds())
 	return r
+	
+def calculateBoundingRectFromVisibleObjects(layers):
+	r = GD.Rect()
+	for i in layers:
+		for gerb_obj in i.all:
+			if not isinstance(gerb_obj, GD.GerbObj_Line) or (gerb_obj.width != 0):
+					r.mergeBounds(gerb_obj.getBounds())
+	return r
 
 
 def calculateBoundingRectFromOutlines(outlines):
 	r = GD.Rect()
 	points = itertools.chain(*outlines)
 	for i in points:
-		r.mergePoint(GD.Point(*i))
+		r.mergePoint(GD.Point(i[0], i[1]),i[2])
 	return r
 	
 def identifyLayer(name, convention="PROTEL"):

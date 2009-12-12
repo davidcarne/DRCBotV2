@@ -72,7 +72,7 @@ class Rect {
 		
 		void mergeBounds(const Rect &r);
 		
-		void mergePoint(const Point &r);
+		void mergePoint(const Point &r, double radius = 0);
 		
 		void feather(double s);
 		void feather(double x, double y);

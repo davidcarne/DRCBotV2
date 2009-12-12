@@ -157,19 +157,21 @@ void Rect::mergeBounds (const Rect & r)
 }
 
 
-void Rect::mergePoint (const Point & r)
+void Rect::mergePoint (const Point & r, double radius)
 {
     if (set)
     {
-        a.x = fmin (a.x, r.x);
-        b.x = fmax (b.x, r.x);
-        a.y = fmin (a.y, r.y);
-        b.y = fmax (b.y, r.y);
+        a.x = fmin (a.x, r.x - radius);
+        b.x = fmax (b.x, r.x + radius);
+        a.y = fmin (a.y, r.y - radius);
+        b.y = fmax (b.y, r.y + radius);
     }
     else
     {
-        a.x = b.x = r.x;
-        a.y = b.y = r.y;
+        a.x = r.x - radius;
+        b.x = r.x + radius;
+        a.y = r.y - radius;
+        b.y = r.y + radius;
         set = true;
     }
 }

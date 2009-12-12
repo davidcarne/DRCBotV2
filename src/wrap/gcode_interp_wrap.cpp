@@ -65,6 +65,10 @@ typedef gerbobjlist_t::const_reverse_iterator (gerbobjlist_t::*rrci)(void) const
 
 namespace bp = boost::python;
 
+
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(mergePointOverloads, mergePoint, 1, 2)
+
+
 void gcodeInterpWrap(void)
 {
 	using namespace boost::python;
@@ -185,8 +189,7 @@ void gcodeInterpWrap(void)
 		 , ( bp::arg("r") ) )    
 	.def( 
 		 "mergePoint"
-		 , (void ( ::Rect::* )( ::Point const & ) )( &::Rect::mergePoint )
-		 , ( bp::arg("r") ) )    
+		 , &::Rect::mergePoint, mergePointOverloads())    
 	.def( 
 		 "pointInRectClosed"
 		 , (bool ( ::Rect::* )( ::Point ) const)( &::Rect::pointInRectClosed )

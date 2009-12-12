@@ -59,8 +59,11 @@ def unit_convert(mode, value):
 	if mode == "INCH": return value * 25400
 	elif mode == "METRIC": return value * 1000
 	
-def parseExcellon(file):
-	
+def parseExcellon(file, coordstrippedzerosfb="LEADING"):
+	if coordstrippedzerosfb not in ["LEADING", "TRAILING"]:
+		print "Invalid coord fallback"
+		return
+		
 	rep = ExcellonRep()
 	unit_mode = "INCH"
 	lines = open(file,"r").readlines()
@@ -125,8 +128,14 @@ def parseExcellon(file):
 		parsemode = "FIXED"
 		
 	elif has_trailing_zeros == has_leading_zeros:
-		print "Can't determine parse settings"
-		return
+		if not coordstrippedzerosfb:
+			print "Can't determine parse settings, and no default"
+			return
+		else:
+			# parse mode indicates whether the file had leading or trailing zeros
+			# but default_strip indicates whether said zeros were stripped, so invert
+			parsemode = "LEADING" if coordstrippedzerosfb == "TRAILING" else "TRAILING"
+			
 	elif has_trailing_zeros:
 		parsemode = "TRAILING"
 	else:

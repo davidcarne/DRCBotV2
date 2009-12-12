@@ -115,7 +115,7 @@ class PlotModeRealistic:
 		if outlines:
 			for i in outlines:
 				cr.move_to(i[0][0], i[0][1])
-				for x,y in i[1:]:
+				for x,y,_ in i[1:]:
 					cr.line_to(x,y)
 				cr.close_path()
 				cr.fill()

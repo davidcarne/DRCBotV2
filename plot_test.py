@@ -1,5 +1,4 @@
 #!/usr/bin/python
-
 import os
 from optparse import OptionParser
 
@@ -10,7 +9,9 @@ import gerberDRC.util as GU
 import math
 
 import plot_modes
-o = OptionParser()
+
+usage = "usage: %prog [options] input_dir output_file"
+o = OptionParser(usage=usage)
 
 o.add_option("-d", "--debug-level", 
 	type="int", dest="debuglevel", default=1,
@@ -18,7 +19,7 @@ o.add_option("-d", "--debug-level",
 
 o.add_option("-m", "--render-mode", 
 	type="str", dest="rendermode", default="REALISTIC_TOP",
-	help="one of REALISTIC_TOP, REALISTIC_BOTTOM, EAGLE")
+	help="one of %s" % ", ".join(plot_modes.modes))
 
 o.add_option("--bounds-artwork", 
     dest="bounds_artwork", default=False, action="store_true",
@@ -41,15 +42,15 @@ o.add_option("--son0", "--search-outline-nonzero",
     dest="search_outline_nonzero", default=False, action="store_true", help="Also look at non-zero lines when determining board outline [WARNING, SLOW]")
 (options, args) = o.parse_args()
 
-if (len(args) != 1):
-	print "You must supply an argument - path/to/gerber/files/folder"
+if (len(args) != 2):
+	o.error("incorrect number of arguments")
 	exit(1)
 
-if not options.rendermode in ["REALISTIC_TOP", "REALISTIC_BOTTOM", "EAGLE"]:
-	print "Error, bad render mode %s" % options.rendermode
+if not options.rendermode in plot_modes.modes:
+	o.error("MODE must be one of %s" % ", ".join(plot_modes.modes))
 	exit(1)
 	
-path = args[0]
+path, outputfilename = args
 mode = options.rendermode
 
 GD.setDebugLevel(GD.debug_level_t(options.debuglevel))
@@ -102,6 +103,7 @@ def renderGerberFile(rep, cr, layer, outlines):
 	cr.paint_with_alpha(ps.alpha)
 	cr.set_operator(ps.renderOperator)
 
+path = os.path.normpath(path) + "/"
 
 # Load all layers from the directory
 layers = {}
@@ -236,5 +238,5 @@ if "DRILL" in layers:
 		cr.close_path()
 		cr.fill()
 		
-surface.write_to_png(open('render/layers.png', 'w'))
+surface.write_to_png(open(outputfilename, 'w'))
 

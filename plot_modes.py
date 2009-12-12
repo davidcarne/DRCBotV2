@@ -1,5 +1,6 @@
 import cairo._cairo as cairo
 
+modes = ["REALISTIC_TOP", "REALISTIC_BOTTOM", "EAGLE"]
 class PlotSet(object):
 	def __init__(self):
 		self.alpha = 1

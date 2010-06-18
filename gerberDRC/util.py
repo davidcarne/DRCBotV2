@@ -24,7 +24,7 @@ def buildCyclePathsForLineSegments(segments):
 	component_nodes = networkx.connected_components(g)
 	
 	# create graphs from node ids for all subcomponents
-	component_graphs = [g.subgraph(i, copy=True) for i in component_nodes]
+	component_graphs = [g.subgraph(i).copy() for i in component_nodes]
 	
 	del g
 	

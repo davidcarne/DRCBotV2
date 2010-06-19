@@ -32,7 +32,7 @@ def buildCyclePathsForLineSegments(segments):
 	for subgraph in component_graphs:
 		# If the graph is not of degree 2, then it can't be a pure cycle
 		# since we've already established it is a completely connected loop
-		if all([degree == 2 for degree in subgraph.degree()]):
+		if all([degree == 2 for degree in subgraph.degree().itervalues()]):
 			# Transversal of the graph starting from a random node
 			ordered = networkx.dfs_preorder(subgraph)
 			

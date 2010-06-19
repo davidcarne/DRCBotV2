@@ -31,6 +31,7 @@
 #include <tr1/unordered_map>
 #include <boost/functional/hash.hpp>
 #include <boost/shared_ptr.hpp>
+#include <string>
 
 #include "partitioning.h"
 #include "util_type.h"
@@ -62,10 +63,35 @@ class GErr {
 };
 
 
+struct gerber_object_layer {
+	gerber_object_layer()
+	{
+		polarity = RS274X_Program::LP_D;
+		name = "";
+		step_repeat.X = 0;
+		step_repeat.Y = 0;
+		step_repeat.x_step = 0;
+		step_repeat.y_step = 0;
+	};
+	
+	RS274X_Program::layer_polar_t polarity;
+	std::string name;
+	struct {
+		int X,Y;
+		double x_step, y_step;
+	} step_repeat;
+	
+	std::list <sp_GerbObj> draws;
+};
+
+typedef boost::shared_ptr<gerber_object_layer> sp_gerber_object_layer;
+
 class Vector_Outp {
 public:
-	std::list <sp_GerbObj> all;
-	Part2D<GerbObj*> lines;
+	std::list <sp_gerber_object_layer> layers;
+	sp_gerber_object_layer current_layer;
+	
+	//Part2D<GerbObj*> lines;
 };
 
 

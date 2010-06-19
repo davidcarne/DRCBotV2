@@ -44,11 +44,12 @@ def buildCyclePathsForLineSegments(segments):
 	return outline_paths
 
 
-def calculateBoundingRectFromObjects(layers, useOnlyZeroWidth=True):
+def calculateBoundingRectFromPCBLayers(layers, useOnlyZeroWidth=True):
 	r = GD.Rect()
 	for i in layers:
-		for gerb_obj in i.all:
-			if not useOnlyZeroWidth or isinstance(gerb_obj, GD.GerbObj_Line) and (gerb_obj.width == 0):
+		for j in i.layers:
+			for gerb_obj in j.draws:
+				if not useOnlyZeroWidth or isinstance(gerb_obj, GD.GerbObj_Line) and (gerb_obj.width == 0):
 					r.mergeBounds(gerb_obj.getBounds())
 	return r
 	

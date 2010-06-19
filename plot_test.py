@@ -87,17 +87,18 @@ def renderGerberFile(rep, cr, layer, outlines):
 		
 	cr.set_source_rgba(ps.ovr, ps.ovg, ps.ovb, 1)
 
-	for k in rep.all:
-		if isinstance(k, GD.GerbObj_Line) and (k.width == 0) and ps.strokeZeroWidthLines:
-				createCairoLineCenterLinePath(k,cr)
-				cr.stroke()
-		else:
-			GD.emitGerbObjectCairoPath(cr, k)
-			
-			if (ps.drawfilled):
-				cr.fill()
+	for l in rep.layers:
+		for k in l.draws:
+			if isinstance(k, GD.GerbObj_Line) and (k.width == 0) and ps.strokeZeroWidthLines:
+					createCairoLineCenterLinePath(k,cr)
+					cr.stroke()
 			else:
-				cr.stroke()		
+				GD.emitGerbObjectCairoPath(cr, k)
+				
+				if (ps.drawfilled):
+					cr.fill()
+				else:
+					cr.stroke()		
 			
 	cr.pop_group_to_source()
 	cr.paint_with_alpha(ps.alpha)
@@ -153,18 +154,19 @@ if "MILLING" in layers:
 	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)
 elif "COPPER_TOP" in layers:
 	t = layers["COPPER_TOP"];
-	if options.search_outline_nonzero:
-		outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line)]
-	else:
-		outline_line_list = [k for k in t.all if isinstance(k, GD.GerbObj_Line) and k.width == 0]
+	outline_line_list = []
+	for t_l in t.layers:
+		if options.search_outline_nonzero:
+			outline_line_list += [k for k in t_l.draws if isinstance(k, GD.GerbObj_Line)]
+		else:
+			outline_line_list += [k for k in t_l.draws if isinstance(k, GD.GerbObj_Line) and k.width == 0]
 	outline_paths = GU.buildCyclePathsForLineSegments(outline_line_list)
-
 
 # Calculate a bounding rectangle using either all visible objects, or only zero-width lines
 check_layers = [v for k,v in layers.items() if not k.startswith("DRILL")]
 if (options.bounding_from_visible_only):
 	check_layers = [v for k,v in layers.items() if k in render_order and not k.startswith("DRILL")]
-artwork_bounds = GU.calculateBoundingRectFromObjects(check_layers, options.size0)
+artwork_bounds = GU.calculateBoundingRectFromPCBLayers(check_layers, options.size0)
 
 # Calculate the board area, for use in setting up the image / image transform
 if outline_paths and not options.bounds_artwork:
@@ -172,7 +174,7 @@ if outline_paths and not options.bounds_artwork:
 
 	srcrect_sane = True
 	copper_layers = [v for k,v in layers.iteritems() if k.startswith("COPPER")]
-	copper_bounds = GU.calculateBoundingRectFromVisibleObjects(copper_layers)
+	copper_bounds = GU.calculateBoundingRectFromPCBLayers(copper_layers)
 
 	# Check if we have artwork outside the source rectangle
 	if  srcrect.getStartPoint().x > copper_bounds.getStartPoint().x or \

@@ -97,6 +97,10 @@ void gerberParserWrap()
 	;
 	
 	
+	enum_<RS274X_Program::layer_polar_t>("layer_polar_t")
+    .value("LP_C", RS274X_Program::LP_C)
+    .value("LP_D", RS274X_Program::LP_D)
+    ;
 	
 	enum_<debug_level_t>("debug_level_t")
     .value("DEBUG_NONE", DEBUG_NONE)

@@ -58,10 +58,14 @@ struct GerbObj_wrapper : GerbObj, bp::wrapper< GerbObj > {
 };
 
 
+typedef std::list<sp_gerber_object_layer > gll_t;
+typedef gll_t::const_iterator (gll_t::*goll_rci)(void) const;
+typedef gll_t::const_reverse_iterator (gll_t::*goll_rrci)(void) const;
+
 
 typedef std::list<sp_GerbObj> gerbobjlist_t;
-typedef gerbobjlist_t::const_iterator (gerbobjlist_t::*rci)(void) const;
-typedef gerbobjlist_t::const_reverse_iterator (gerbobjlist_t::*rrci)(void) const;
+typedef gerbobjlist_t::const_iterator (gerbobjlist_t::*gol_rci)(void) const;
+typedef gerbobjlist_t::const_reverse_iterator (gerbobjlist_t::*gol_rrci)(void) const;
 
 namespace bp = boost::python;
 
@@ -96,18 +100,36 @@ void gcodeInterpWrap(void)
 
 	
 	bp::register_ptr_to_python< boost::shared_ptr< GerbObj > >();
-
+	
+	
+	
+	bp::class_< gerber_object_layer, boost::noncopyable >( "gerber_object_layer", bp::no_init ).def( bp::init< >() )
+	.def_readwrite("name", &gerber_object_layer::name)
+	.def_readwrite("polarity", &gerber_object_layer::polarity)
+	.def_readwrite("draws", &gerber_object_layer::draws);
+	
+	bp::register_ptr_to_python< boost::shared_ptr< gerber_object_layer > >();
+	
+	class_<gll_t>("gerb_object_layer_list", init<>())
+	.def("__iter__", range(static_cast<goll_rci>(&gll_t::begin), 
+						   static_cast<goll_rci>(&gll_t::end)))
+	.def("__reversed__", range(static_cast<goll_rrci>(&gll_t::rbegin), 
+							   static_cast<goll_rrci>(&gll_t::rend)))
+	.def("__len__", &gll_t::size);
+	
+	
+	
 	
 	class_<gerbobjlist_t>("gerbObjList", init<>())
-		.def("__iter__", range(static_cast<rci>(&gerbobjlist_t::begin), 
-						   static_cast<rci>(&gerbobjlist_t::end)))
-		.def("__reversed__", range(static_cast<rrci>(&gerbobjlist_t::rbegin), 
-							static_cast<rrci>(&gerbobjlist_t::rend)))
+		.def("__iter__", range(static_cast<gol_rci>(&gerbobjlist_t::begin), 
+						   static_cast<gol_rci>(&gerbobjlist_t::end)))
+		.def("__reversed__", range(static_cast<gol_rrci>(&gerbobjlist_t::rbegin), 
+							static_cast<gol_rrci>(&gerbobjlist_t::rend)))
 		.def("__len__", &gerbobjlist_t::size);
 	
 	
-	class_<Vector_Outp, boost::shared_ptr<Vector_Outp> >("PolygonLayer", init<>())
-	.def_readonly("all",&Vector_Outp::all)
+	class_<Vector_Outp, boost::shared_ptr<Vector_Outp> >("PolygonLayers", init<>())
+	.def_readonly("layers",&Vector_Outp::layers)
 	;
 	
 	bp::class_< RenderPoly >( "RenderPoly" )    

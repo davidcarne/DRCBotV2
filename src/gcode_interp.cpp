@@ -88,7 +88,7 @@ bool can_trace_aperture(const struct RS274X_Program::aperture * ap)
 	return true;
 }
 
-bool handle_G_op(struct GCODE_state * s, const struct RS274X_Program::gcode_block & b, Vector_Outp * v)
+bool handle_G_op(struct GCODE_state * s, const struct RS274X_Program::gcode_block & b, sp_gerber_object_layer v)
 {
 	switch (b.int_data)
 	{
@@ -103,7 +103,7 @@ bool handle_G_op(struct GCODE_state * s, const struct RS274X_Program::gcode_bloc
 			s->poly_fill = true;
 			break;
 		case 37:
-			v->all.push_back(sp_GerbObj(s->cpoly));
+			v->draws.push_back(sp_GerbObj(s->cpoly));
 			s->cpoly = NULL;
 			s->poly_fill = false;
 			break;
@@ -394,7 +394,7 @@ GerbObj * create_poly(struct GCODE_state * s, sp_RS274X_Program gerb)
 	return NULL;
 }
 
-void createPolysForCurve(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * vect, bool poly_point) {
+void createPolysForCurve(struct GCODE_state * s, sp_RS274X_Program gerb, sp_gerber_object_layer vect, bool poly_point) {
 	
 	double cx;
 	double cy;
@@ -486,7 +486,7 @@ void createPolysForCurve(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_
 		
 			
 	
-			vect->all.push_back(sp_GerbObj(obj));
+			vect->draws.push_back(sp_GerbObj(obj));
 		} else {
 			s->cpoly->addPoint(Point(x, y));
 		}
@@ -498,7 +498,7 @@ void createPolysForCurve(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_
 
 }
 
-bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * vect)
+bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, sp_gerber_object_layer vect)
 {
 	
 	// Check if we've accumulated any coords since the last exec
@@ -529,7 +529,7 @@ bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * v
 					
 						if (output_poly != NULL)
 						{
-							vect->all.push_back(sp_GerbObj(output_poly));
+							vect->draws.push_back(sp_GerbObj(output_poly));
 						} else {
 					
 							DBG_ERR_PF("Unhandled Move from (%lf,%lf) to (%lf,%lf) ap %d light %s", 
@@ -567,7 +567,7 @@ bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * v
 
 						if (output_poly != NULL)
 						{
-								vect->all.push_back(sp_GerbObj(output_poly));
+								vect->draws.push_back(sp_GerbObj(output_poly));
 						} else {
 
 								DBG_ERR_PF("Unhandled Move from (%lf,%lf) to (%lf,%lf) ap %d light %s",
@@ -608,6 +608,114 @@ bool handle_exec(struct GCODE_state * s, sp_RS274X_Program gerb, Vector_Outp * v
 	return true;
 }
 
+const char * decode_gcode_directive_type(enum RS274X_Program::gcode_directive_type_t dt)
+{
+	switch (dt) {
+		case RS274X_Program::DIR_AS: return "DIR_AS";
+		case RS274X_Program::DIR_FS: return "DIR_FS";
+		case RS274X_Program::DIR_MI: return "DIR_MI";
+		case RS274X_Program::DIR_MO: return "DIR_MO";
+		case RS274X_Program::DIR_OF: return "DIR_OF";
+		case RS274X_Program::DIR_SF: return "DIR_SF";
+		case RS274X_Program::LY_KO: return "LY_KO";
+		case RS274X_Program::LY_LN: return "LY_LN";
+		case RS274X_Program::LY_LP: return "LY_LP";
+		case RS274X_Program::LY_SR: return "LY_SR";
+	}
+	assert(false); // INVALID directive, so trap out
+}
+
+
+
+void setupLayerIfNone(Vector_Outp * pt)
+{
+	assert(pt->layers.size() && pt->current_layer ||
+		   !pt->layers.size() && !pt->current_layer);
+	
+	if (!pt->current_layer)
+	{
+		sp_gerber_object_layer s = sp_gerber_object_layer(new gerber_object_layer);
+		pt->layers.push_back(s);
+		pt->current_layer = s;
+	}
+}
+
+void cloneToNewLayerIfDrawn(Vector_Outp * pt)
+{
+	setupLayerIfNone(pt);
+	if (pt->current_layer->draws.size())
+	{
+		sp_gerber_object_layer olds = pt->current_layer;
+		sp_gerber_object_layer s = sp_gerber_object_layer(new gerber_object_layer);
+		pt->layers.push_back(s);
+		pt->current_layer = s;
+		s->name = olds->name;
+		s->polarity = olds->polarity;
+		s->step_repeat = olds->step_repeat;
+		
+	}
+}
+
+bool handle_directive(struct GCODE_state * plot_state, const struct RS274X_Program::gcode_block & op, Vector_Outp * pt)
+{
+	assert(plot_state);
+	assert(op.op == RS274X_Program::GCO_DIR);
+	switch (op.gdd_data.dir)
+	{
+		case RS274X_Program::DIR_AS:
+			DBG_MSG_PF("Error - axis setup not supported");
+			return false;
+			
+		case RS274X_Program::DIR_FS:
+			if (op.gdd_data.FS_P.ai == RS274X_Program::COORD_INC)
+			{
+				DBG_MSG_PF("Error - switching to incremental mode [not yet supported]");
+				return false;
+			}
+			break;
+			
+		case RS274X_Program::DIR_MI:
+			DBG_MSG_PF("Error - mirror image not supported");
+			return false;
+			
+		case RS274X_Program::DIR_MO:
+			plot_state->um = op.gdd_data.MO_P.um;
+			break;
+			
+		case RS274X_Program::DIR_OF:
+			DBG_MSG_PF("Error - offset not supported");
+			return false;
+		case RS274X_Program::DIR_SF:
+			DBG_MSG_PF("Error - scale factor not supported");
+			return false;
+		case RS274X_Program::LY_KO:
+			cloneToNewLayerIfDrawn(pt);
+			break;
+			
+		case RS274X_Program::LY_LN:
+			cloneToNewLayerIfDrawn(pt);
+			DBG_MSG_PF("Setting layer name to %s", op.gdd_data.LN_P.name);
+			pt->current_layer->name = op.gdd_data.LN_P.name;
+			break;
+			
+		case RS274X_Program::LY_LP:
+			cloneToNewLayerIfDrawn(pt);
+			pt->current_layer->polarity = op.gdd_data.LP_P.lp;
+			break;
+			
+		case RS274X_Program::LY_SR:
+			cloneToNewLayerIfDrawn(pt);
+			pt->current_layer->step_repeat.X = op.gdd_data.SR_P.X;
+			pt->current_layer->step_repeat.X = op.gdd_data.SR_P.Y;
+			pt->current_layer->step_repeat.x_step = op.gdd_data.SR_P.x_step;
+			pt->current_layer->step_repeat.y_step = op.gdd_data.SR_P.y_step;
+			break;
+	}
+	
+	return true;
+	
+}
+
 sp_Vector_Outp gcode_run(sp_RS274X_Program gerb)
 {
 
@@ -626,7 +734,7 @@ sp_Vector_Outp gcode_run(sp_RS274X_Program gerb)
 	// Eagle doesn't seem to include this :/
 	plot_state.G_op = 1;
 	
-	DBG_MSG_PF("Starting GCODE Virtual Machine\n");
+	DBG_MSG_PF("Starting GCODE Virtual Machine");
 
 	RS274X_Program::operations_list_t::const_iterator ci = 
 		gerb->m_operations.begin();
@@ -640,7 +748,8 @@ sp_Vector_Outp gcode_run(sp_RS274X_Program gerb)
 		switch (cur_op.op)
 		{
 			case RS274X_Program::GCO_G:
-				handle_G_op(&plot_state, cur_op, pt);
+				setupLayerIfNone(pt);
+				handle_G_op(&plot_state, cur_op, pt->current_layer);
 				break;
 				
 			case RS274X_Program::GCO_M:
@@ -662,7 +771,8 @@ sp_Vector_Outp gcode_run(sp_RS274X_Program gerb)
 				break;
 
 			case RS274X_Program::GCO_END:
-				if (!handle_exec(&plot_state, gerb, pt))
+				setupLayerIfNone(pt);
+				if (!handle_exec(&plot_state, gerb, pt->current_layer))
 				{
 					DBG_ERR_PF("Could not execute gcode block!");
 					return sp_Vector_Outp();
@@ -670,12 +780,15 @@ sp_Vector_Outp gcode_run(sp_RS274X_Program gerb)
 				break;
 
 			case RS274X_Program::GCO_DIR:;
-				//printf("Directive matching unhandled!\n");
-				//return NULL;
+				if (!handle_directive(&plot_state, cur_op, pt))
+				{
+					DBG_ERR_PF("Could not handle directive %s", decode_gcode_directive_type(cur_op.gdd_data.dir));
+					return sp_Vector_Outp();
+				}
 		}
 		ci++;
 	}
-	DBG_MSG_PF("GCODE Virtual Machine Finished\n");
+	DBG_MSG_PF("GCODE Virtual Machine Finished");
 
 	return sp_Vector_Outp(pt);
 }

@@ -266,6 +266,13 @@ public:
 				double B;
 			} SF_P;
 			
+			struct {
+				int X;
+				int Y;
+				double x_step;
+				double y_step;
+			} SR_P;
+			
 		};
 	};
 	

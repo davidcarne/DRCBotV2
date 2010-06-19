@@ -479,7 +479,6 @@ bool handle_274X_FS(char * block, RS274X_Program * target)
 	block++;
 
 	switch (*block) {
-	// TODO: emit a directive entry for this.
 		case 'A':
 		{
 			struct RS274X_Program::gcode_block eob;
@@ -741,12 +740,109 @@ bool handle_274X_LN(char * block, RS274X_Program * target)
 	struct RS274X_Program::gcode_block eob;
 	eob.op = RS274X_Program::GCO_DIR;
 	eob.gdd_data.dir = RS274X_Program::LY_LN;
-	eob.gdd_data.LN_P.name = block + 2;
+	eob.gdd_data.LN_P.name = strdup(block + 2);
 	append_gcode_block(target, eob);	
 	
 	return true;
 }
 
+
+/* MO - Mode */
+bool handle_274X_SR(char * block, RS274X_Program * target)
+{
+	assert((block[0] == 'S') && (block[1] == 'R'));
+	block += 2;
+	
+	double x_step, y_step;
+	int X;
+	int Y;
+	
+	char * parseptr;
+	if (block[0] != 'X')
+	{
+		DBG_ERR_PF("Expected X in SR block");
+		return false;
+	}
+	block++;
+	
+	X = strtol(block, &parseptr, 10);
+	
+	if (block == parseptr)
+	{
+		DBG_ERR_PF("0 length X step count");
+		
+		return false;
+	}
+	block = parseptr;
+	
+	
+	if (block[0] != 'Y')
+	{
+		DBG_ERR_PF("Expected Y in SR block");
+		return false;
+	}
+
+	block++;
+	
+	Y = strtol(block, &parseptr, 10);
+	
+	if (block == parseptr)
+	{
+		DBG_ERR_PF("0 length Y step count");
+		
+		return false;
+	}
+	block = parseptr;
+	
+	
+	// Parse X step amount
+	if (block[0] != 'I')
+	{
+		DBG_ERR_PF("Expected I in SR block");
+		return false;
+	}
+	
+	block++;
+	x_step = strtod(block, &parseptr);
+	
+	if (block == parseptr)
+	{
+		DBG_ERR_PF("0 length I step amount");
+		
+		return false;
+	}
+	block = parseptr;
+	
+	// Parse X step amount
+	if (block[0] != 'J')
+	{
+		DBG_ERR_PF("Expected J in SR block");
+		return false;
+	}
+	
+	block++;
+	x_step = strtod(block, &parseptr);
+	
+	if (block == parseptr)
+	{
+		DBG_ERR_PF("0 length J step amount");
+		
+		return false;
+	}
+	block = parseptr;
+	
+	
+	struct RS274X_Program::gcode_block eob;
+	eob.op = RS274X_Program::GCO_DIR;
+	eob.gdd_data.dir = RS274X_Program::LY_SR;
+	eob.gdd_data.SR_P.X = X;
+	eob.gdd_data.SR_P.Y = Y;
+	eob.gdd_data.SR_P.x_step = x_step;
+	eob.gdd_data.SR_P.y_step = y_step;
+	append_gcode_block(target, eob);
+	
+	return true;
+}
 
 
 /* General format for a param block
@@ -841,8 +937,7 @@ bool parse_274X_param_do_block(char ** cur_block_ptr, RS274X_Program * target, i
 			break;
 			
 		case INTPM('S','R'):
-			// Todo: implement me!
-			parse_ok = false;
+			parse_ok = handle_274X_SR(*cur_block_ptr, target);
 			break;
 			
 			

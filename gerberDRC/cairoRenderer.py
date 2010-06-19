@@ -13,6 +13,9 @@ def emitGerbObjectCairoPath(context, gerbobj):
 	
 	segs = gerbobj.getPolyData().segs
 	
+	if len(segs) == 0:
+		return
+		
 	cr.move_to (segs[0].x, segs[0].y);
 	
 	for j in xrange(len(segs[1:])+1):

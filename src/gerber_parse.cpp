@@ -813,7 +813,7 @@ bool handle_274X_SR(char * block, RS274X_Program * target)
 	}
 	block = parseptr;
 	
-	// Parse X step amount
+	// Parse Y step amount
 	if (block[0] != 'J')
 	{
 		DBG_ERR_PF("Expected J in SR block");
@@ -821,7 +821,7 @@ bool handle_274X_SR(char * block, RS274X_Program * target)
 	}
 	
 	block++;
-	x_step = strtod(block, &parseptr);
+	y_step = strtod(block, &parseptr);
 	
 	if (block == parseptr)
 	{

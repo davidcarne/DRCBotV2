@@ -629,8 +629,8 @@ const char * decode_gcode_directive_type(enum RS274X_Program::gcode_directive_ty
 
 void setupLayerIfNone(Vector_Outp * pt)
 {
-	assert(pt->layers.size() && pt->current_layer ||
-		   !pt->layers.size() && !pt->current_layer);
+	assert((pt->layers.size() && pt->current_layer) ||
+		   (!pt->layers.size() && !pt->current_layer));
 	
 	if (!pt->current_layer)
 	{
